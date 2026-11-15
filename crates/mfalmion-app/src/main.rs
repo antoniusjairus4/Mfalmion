@@ -1,14 +1,20 @@
 mod app;
+mod graphics;
+mod logging;
 mod theme;
 mod ui;
 
 fn main() -> eframe::Result {
+    logging::init();
+    let compatibility = graphics::configuration()?;
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title("Mfalmion")
             .with_inner_size([1440.0, 900.0])
             .with_min_inner_size([760.0, 540.0]),
         renderer: eframe::Renderer::Wgpu,
+        wgpu_options: compatibility.wgpu,
+        event_loop_builder: compatibility.event_loop_builder,
         ..Default::default()
     };
     eprintln!(

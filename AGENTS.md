@@ -10,4 +10,4 @@ Mfalmion is an offline-first, local-first chess analysis desktop application for
 - Check free disk space before and after compilation. Stop if insufficient. Keep build artifacts in project target/. Avoid release builds, duplicate downloads, cache deletion, cargo clean, and destructive cleanup. Never install system packages without approval.
 - Never modify external AI models, external drives, or the CUDA installation. Do not start llama.cpp for shell work.
 - Verify each milestone with cargo fmt --all -- --check, cargo check --workspace, cargo test --workspace, and cargo clippy --workspace --all-targets -- -D warnings when feasible. Attempt native launch; report GUI testing limitations honestly.
-- Preserve README content and Git history. Keep Cargo.lock tracked. Never commit, push, or change remotes automatically.
+- Preserve README content and Git history. Keep Cargo.lock tracked. The user has authorized committing and pushing completed, verified task changes to GitHub main after each task. Do not create empty commits for read-only commands. Do not force-push or change remotes without explicit approval. This does not authorize starting another milestone.

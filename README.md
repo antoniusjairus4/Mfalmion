@@ -43,14 +43,26 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 
 No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval; no automatic commits or pushes.
 
-## Milestone 01 runtime caveat
+## Linux graphics compatibility
 
-In the development session, the default Wayland launch failed inside wgpu with `Surface::configure: Invalid surface`. X11 produced visible UI frames, including the compact layout, but automated navigation and normal shutdown could not be reliably verified. A graphics/session compatibility issue remains unresolved; the rendered frame is not proof of sustained responsiveness.
+The shell defaults to **X11 when DISPLAY is available**, and **wgpu Vulkan with a low-power adapter preference**. On this GNOME Wayland session, X11 means XWayland; no desktop-session settings are changed. Intel Iris Xe is selected on this laptop. This avoids the NVIDIA 550.163.01 Wayland surface failure observed with eframe's high-performance default, and leaves the shell off the discrete GPU by default.
 
-To reproduce the Intel Vulkan diagnostic run on this machine:
+Run normally; no ICD environment variables are required:
 
 ```sh
-env -u WAYLAND_DISPLAY VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json WGPU_BACKEND=vulkan cargo run -p mfalmion-app
+cargo run -p mfalmion-app --offline
 ```
 
-This is an explicit diagnostic selection of X11/Intel Vulkan, not an automatic fallback. Manually test all six pages, resize to 760×540, scroll Settings, and close the window. Do not proceed to Milestone 02 until runtime behavior is accepted.
+For explicit session diagnostics:
+
+```sh
+MFALMION_WINDOW_SYSTEM=wayland cargo run -p mfalmion-app --offline
+MFALMION_WINDOW_SYSTEM=auto cargo run -p mfalmion-app --offline
+MFALMION_DIAGNOSTICS=1 cargo run -p mfalmion-app --offline
+```
+
+`MFALMION_WINDOW_SYSTEM` accepts `x11`, `wayland`, or `auto` (winit's native selection). Without DISPLAY, native selection is retained. Existing `WGPU_BACKEND` and `WGPU_POWER_PREF` overrides are respected; selecting `WGPU_POWER_PREF=high` can reproduce the failing NVIDIA path. There is no automatic renderer retry or framework switch. Startup reports the session policy and actual GPU; navigation and clean shutdown are logged to stderr. Debug graphics logs are opt-in.
+
+Runtime verification passed startup, Vulkan rendering, keyboard navigation across all six pages, resizing to 760×540 and back to 1440×900, and a normal WM_DELETE_WINDOW close with exit status 0. Automated pointer injection under GNOME Wayland was unreliable; physical mouse and title-bar-close checks remain manual. Native Wayland with low-power Intel Vulkan started without the former surface panic, but full interaction on that path was not verified. A native Xorg session was not tested.
+
+See [runtime stabilization findings](docs/runtime-stabilization.md) for diagnostics and a manual acceptance checklist.

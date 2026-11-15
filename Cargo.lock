@@ -1195,6 +1195,8 @@ name = "mfalmion-app"
 version = "0.1.0"
 dependencies = [
  "eframe",
+ "log",
+ "winit",
 ]
 
 [[package]]

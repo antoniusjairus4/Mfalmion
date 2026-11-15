@@ -1,4 +1,6 @@
-# Milestone 01 verification — 2026-11-16
+# Milestone 01 initial verification — 2026-11-16
+
+Historical initial results. The later [runtime stabilization report](runtime-stabilization.md) supersedes the runtime caveats below.
 
 Implemented a single Rust workspace application using cached eframe 0.36.2, default fonts, wgpu, Wayland and X11. No engine, AI, network, database or chess functionality was added. Original README heading and Git history are preserved. No system packages were installed and all Cargo operations used offline cached dependencies.
 

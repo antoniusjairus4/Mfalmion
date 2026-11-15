@@ -11,6 +11,12 @@ pub struct MfalmionApp {
 
 impl MfalmionApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        if let Some(state) = &cc.wgpu_render_state {
+            eprintln!(
+                "level=INFO event=graphics_adapter info={:?}",
+                state.adapter.get_info()
+            );
+        }
         theme::apply(&cc.egui_ctx);
         Self::default()
     }
@@ -27,7 +33,11 @@ impl eframe::App for MfalmionApp {
                 ui.label("Milestone 01 · Desktop foundation");
             });
         });
+        let previous = self.page;
         ui::sidebar::show(ui, &mut self.page);
+        if previous != self.page {
+            eprintln!("level=INFO event=navigation page={:?}", self.page);
+        }
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
