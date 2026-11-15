@@ -1,5 +1,7 @@
 # Milestone 01 initial verification — 2026-11-16
 
+Accepted runtime update: the user has manually verified startup, navigation, resizing and normal shutdown with X11/Intel Vulkan. This is Milestone 01’s accepted runtime configuration. The original Wayland Invalid surface issue remains unresolved.
+
 Historical initial results. The later [runtime stabilization report](runtime-stabilization.md) supersedes the runtime caveats below.
 
 Implemented a single Rust workspace application using cached eframe 0.36.2, default fonts, wgpu, Wayland and X11. No engine, AI, network, database or chess functionality was added. Original README heading and Git history are preserved. No system packages were installed and all Cargo operations used offline cached dependencies.
@@ -24,4 +26,4 @@ See README for the exact diagnostic launch command. Manual graphical-session ver
 
 Free space before compilation: 9.8 GB (df -h). After compilation: approximately 8.6 GB. Project target/: approximately 1.2 GB. Debug symbols and incremental artifacts disabled; build jobs limited to two. No cleanup was performed. No commits, pushes, remote changes, external drive writes or AI/CUDA asset changes.
 
-Milestone 02 remains unapproved and unimplemented.
+At the time of these initial results, Milestone 02 was unapproved. Milestone 02A is now explicitly approved; see [its report](milestone-02a.md). Legal moves in 02B remain unapproved.

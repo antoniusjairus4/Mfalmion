@@ -7,6 +7,7 @@ use eframe::egui::{self, RichText};
 #[derive(Default)]
 pub struct MfalmionApp {
     page: Page,
+    game_review: ui::game_review::GameReview,
 }
 
 impl MfalmionApp {
@@ -18,6 +19,7 @@ impl MfalmionApp {
             );
         }
         theme::apply(&cc.egui_ctx);
+        crate::board::install_font(&cc.egui_ctx);
         Self::default()
     }
 }
@@ -30,7 +32,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 01 · Desktop foundation");
+                ui.label("Milestone 02A · Interactive board UI");
             });
         });
         let previous = self.page;
@@ -45,7 +47,13 @@ impl eframe::App for MfalmionApp {
                     .inner_margin(28.0),
             )
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| ui::pages::show(ui, self.page));
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    if self.page == Page::GameReview {
+                        self.game_review.show(ui);
+                    } else {
+                        ui::pages::show(ui, self.page);
+                    }
+                });
             });
     }
 }

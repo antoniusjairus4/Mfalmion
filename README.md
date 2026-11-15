@@ -2,9 +2,9 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 01 — Rust Desktop Foundation
+## Current milestone: 02A — Native Interactive Chessboard UI
 
-The shell provides six navigable placeholder pages, a responsive dark theme, and application status. Stockfish, AI coaching, Chess.com sync, databases, and chess rules are **not implemented**. No statistics or analysis are fabricated.
+The shell provides six navigable sections, a responsive dark theme, and application status. Game Review now contains a native 8×8 starting-position board with square selection, coordinates, and a Flip Board control. Other sections retain their placeholders. Pieces cannot move yet. Stockfish, AI coaching, Chess.com sync, databases, and chess rules are **not implemented**. No statistics or analysis are fabricated.
 
 ## Development on Kali Linux
 
@@ -32,14 +32,15 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 - `crates/mfalmion-app/src/main.rs`: native startup, explicit wgpu renderer, terminal lifecycle/error logs.
 - `app.rs`: shell composition and current page state.
 - `theme.rs`: reusable palette and style.
-- `ui/`: navigation and truthful placeholder screens.
+- `board/`: display-only position, coordinate/orientation mapping, selection state, and native egui painting.
+- `ui/`: navigation, Game Review layout, and truthful placeholder screens.
 - `AGENTS.md`: permanent engineering rules.
 - `docs/`: milestone verification notes.
-- `assets/`: reserved for future approved local assets; no assets are required now.
+- `assets/fonts/`: bundled 20 KB DejaVu chess-symbol subset and its license; no runtime font downloads.
 
 ## Planned milestones
 
-02: Interactive Chessboard, subject to approval. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Board UI implemented; manual acceptance pending. 02B: a maintained chess library and legal moves, subject to explicit approval. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
 No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval; no automatic commits or pushes.
 
@@ -65,4 +66,12 @@ MFALMION_DIAGNOSTICS=1 cargo run -p mfalmion-app --offline
 
 Runtime verification passed startup, Vulkan rendering, keyboard navigation across all six pages, resizing to 760×540 and back to 1440×900, and a normal WM_DELETE_WINDOW close with exit status 0. Automated pointer injection under GNOME Wayland was unreliable; physical mouse and title-bar-close checks remain manual. Native Wayland with low-power Intel Vulkan started without the former surface panic, but full interaction on that path was not verified. A native Xorg session was not tested.
 
-See [runtime stabilization findings](docs/runtime-stabilization.md) for diagnostics and a manual acceptance checklist.
+The user has now manually accepted Milestone 01 startup, navigation, resizing, and shutdown using **X11/Intel Vulkan**. The original Wayland Invalid surface issue remains unresolved; the compatibility configuration is preserved.
+
+For Milestone 02A manual testing with the known-working explicit workaround:
+
+```sh
+env -u WAYLAND_DISPLAY MFALMION_WINDOW_SYSTEM=x11 VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json WGPU_BACKEND=vulkan cargo run -p mfalmion-app --offline
+```
+
+No GUI was launched or graphically automated during 02A. See [Milestone 02A](docs/milestone-02a.md) for the board acceptance checklist and [runtime stabilization findings](docs/runtime-stabilization.md) for the historical diagnostics.

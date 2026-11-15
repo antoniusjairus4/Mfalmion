@@ -1,4 +1,5 @@
 mod app;
+mod board;
 mod graphics;
 mod logging;
 mod theme;
