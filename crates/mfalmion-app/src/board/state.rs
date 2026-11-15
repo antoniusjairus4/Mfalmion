@@ -19,6 +19,19 @@ impl Orientation {
         }
     }
 
+    /// Project canonical file/rank cell coordinates into left/top display coordinates.
+    pub fn project(self, point: [f32; 2]) -> [f32; 2] {
+        match self {
+            Self::WhiteBottom => [point[0], 8.0 - point[1]],
+            Self::BlackBottom => [8.0 - point[0], point[1]],
+        }
+    }
+
+    /// Both orientation transforms are their own inverse, including off-board drag points.
+    pub fn unproject(self, point: [f32; 2]) -> [f32; 2] {
+        self.project(point)
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Self::WhiteBottom => "White at bottom",

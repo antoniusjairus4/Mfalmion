@@ -1,4 +1,5 @@
 //! Native board renderer with library-backed legal moves.
+mod animation;
 mod artwork;
 mod game;
 mod position;
@@ -14,3 +15,5 @@ pub use view::{BoardInput, Highlights, show};
 pub use game::{Game, MoveResult};
 pub use position::Kind;
 pub use square::Square;
+
+pub use animation::AnimationState;

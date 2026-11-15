@@ -8,6 +8,7 @@ use eframe::egui::{self, RichText};
 pub struct GameReview {
     game: Game,
     textures: board::PieceTextures,
+    animations: board::AnimationState,
     state: BoardState,
     promotion: Option<(Square, Square)>,
     notice: Option<&'static str>,
@@ -17,7 +18,7 @@ pub struct GameReview {
 impl GameReview {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.label(
-            RichText::new("MILESTONE 02B · LEGAL MOVES")
+            RichText::new("MILESTONE 02B.1 · SMOOTH MOVEMENT")
                 .small()
                 .color(theme::CYAN),
         );
@@ -46,6 +47,8 @@ impl GameReview {
     }
 
     fn board(&mut self, ui: &mut egui::Ui, side: f32) {
+        let now = ui.input(|input| input.time);
+        self.animations.advance(now);
         let targets = self
             .state
             .selected
@@ -66,32 +69,41 @@ impl GameReview {
                     legal_targets: &targets,
                     capture_targets: &captures,
                     checked_king: self.game.checked_king(),
+                    animations: Some(&self.animations),
+                    draggable_side: Some(self.game.side_to_move()),
                 },
             );
         });
         if let Some(input) = input {
-            self.handle_input(input);
+            self.handle_input(input, now);
             ui.ctx().request_repaint();
         }
     }
 
-    fn handle_input(&mut self, input: BoardInput) {
+    fn handle_input(&mut self, input: BoardInput, now: f64) {
         if self.promotion.is_some() || self.game.is_over() {
             return;
         }
         self.notice = None;
         match input {
             BoardInput::DragStart(square) => {
+                self.animations.clear();
                 self.state.selected = self.game.owns(square).then_some(square);
             }
-            BoardInput::Drop { from, to } => self.attempt(from, to),
+            BoardInput::Drop { from, to, at } => {
+                if let Some(to) = to {
+                    self.attempt(from, to, None, now, Some(at));
+                } else {
+                    self.snap_back(from, at, now);
+                }
+            }
             BoardInput::Click(square) => {
                 if self.state.selected == Some(square) {
                     self.state.select(square);
                 } else if self.game.owns(square) {
                     self.state.selected = Some(square);
                 } else if let Some(from) = self.state.selected {
-                    self.attempt(from, square);
+                    self.attempt(from, square, None, now, None);
                 } else {
                     self.notice = Some("Select a piece belonging to the side to move.");
                 }
@@ -99,28 +111,82 @@ impl GameReview {
         }
     }
 
-    fn attempt(&mut self, from: Square, to: Square) {
+    fn attempt(
+        &mut self,
+        from: Square,
+        to: Square,
+        promotion: Option<Kind>,
+        now: f64,
+        drop_origin: Option<[f32; 2]>,
+    ) {
+        let before = self.game.position();
         let result = if self.claim_next_move {
-            self.game.claim_with_move(from, to, None)
+            self.game.claim_with_move(from, to, promotion)
         } else {
-            self.game.try_move(from, to, None)
+            self.game.try_move(from, to, promotion)
         };
         match result {
-            MoveResult::Played | MoveResult::DrawClaimed => {
+            MoveResult::Played => {
+                self.animations
+                    .transition(&before, &self.game.position(), now);
+                if let Some(origin) = drop_origin {
+                    self.animations.settle_drop(from, to, origin);
+                }
                 self.state.selected = None;
                 self.claim_next_move = false;
+                self.promotion = None;
+                self.notice = None;
+            }
+            MoveResult::DrawClaimed => {
+                self.animations.clear();
+                self.state.selected = None;
+                self.claim_next_move = false;
+                self.promotion = None;
             }
             MoveResult::NeedsPromotion => {
+                self.animations.clear();
                 self.promotion = Some((from, to));
             }
-            MoveResult::NotClaimable => {
-                self.notice =
-                    Some("That move cannot claim a draw. Uncheck the claim option to play it.");
-            }
-            MoveResult::Illegal => {
-                self.notice = Some("That move is not legal. Choose a mint destination.");
+            MoveResult::NotClaimable | MoveResult::Illegal => {
+                self.promotion = None;
+                self.notice = Some(if result == MoveResult::NotClaimable {
+                    "That move cannot claim a draw. Uncheck the claim option to play it."
+                } else {
+                    "That move is not legal. Choose a mint destination."
+                });
+                if let Some(origin) = drop_origin {
+                    self.snap_back(from, origin, now);
+                }
             }
         }
+    }
+
+    fn snap_back(&mut self, from: Square, origin: [f32; 2], now: f64) {
+        if self.game.owns(from)
+            && let Some(piece) = self.game.position().piece_at(from)
+        {
+            self.animations.snap_back(piece, from, origin, now);
+        }
+    }
+
+    fn clear_interaction(&mut self) {
+        self.animations.clear();
+        self.state.selected = None;
+        self.promotion = None;
+        self.notice = None;
+        self.claim_next_move = false;
+    }
+    fn new_game(&mut self) {
+        self.game = Game::default();
+        self.clear_interaction();
+    }
+    fn undo(&mut self) {
+        self.game.undo();
+        self.clear_interaction();
+    }
+    fn flip(&mut self) {
+        self.animations.clear();
+        self.state.flip();
     }
 
     fn details(&mut self, ui: &mut egui::Ui) {
@@ -145,7 +211,8 @@ impl GameReview {
             ui.label(RichText::new(selected).size(26.0).color(theme::CYAN));
             ui.label(RichText::new(self.state.orientation.label()).color(theme::MUTED));
             if ui.button("Flip Board").clicked() {
-                self.state.flip();
+                self.flip();
+                ui.ctx().stop_dragging();
                 ui.ctx().request_repaint();
             }
             if let Some((from, to)) = self.promotion {
@@ -159,18 +226,7 @@ impl GameReview {
                         ("Knight", Kind::Knight),
                     ] {
                         if ui.button(label).clicked() {
-                            let result = if self.claim_next_move {
-                                self.game.claim_with_move(from, to, Some(kind))
-                            } else { self.game.try_move(from, to, Some(kind)) };
-                            if matches!(result, MoveResult::Played | MoveResult::DrawClaimed) {
-                                self.state.selected = None;
-                                self.notice = None;
-                                self.claim_next_move = false;
-                            } else {
-                                self.notice =
-                                    Some("Promotion was not applied. Please try the move again.");
-                            }
-                            self.promotion = None;
+                            self.attempt(from, to, Some(kind), ui.input(|input| input.time), None);
                             ui.ctx().request_repaint();
                         }
                     }
@@ -192,24 +248,19 @@ impl GameReview {
                 .color(theme::MUTED),
             );
             if ui.button("New Game").clicked() {
-                self.game = Game::default();
-                self.state.selected = None;
-                self.promotion = None;
-                self.notice = None;
-                self.claim_next_move = false;
+                self.new_game();
+                ui.ctx().stop_dragging();
                 ui.ctx().request_repaint();
             }
             if ui.add_enabled(self.game.can_undo() || self.promotion.is_some(), egui::Button::new("Undo Last Move")).clicked() {
-                self.game.undo();
-                self.state.selected = None;
-                self.promotion = None;
-                self.notice = None;
-                self.claim_next_move = false;
+                self.undo();
+                ui.ctx().stop_dragging();
                 ui.ctx().request_repaint();
             }
             ui.separator();
             if ui.add_enabled(self.promotion.is_none() && self.game.can_claim_draw(), egui::Button::new("Claim Draw")).clicked() {
                 self.game.claim_draw();
+                self.animations.clear();
                 self.state.selected = None;
                 self.claim_next_move = false;
                 ui.ctx().request_repaint();
@@ -297,7 +348,7 @@ mod tests {
         assert!(review.game.position().piece_at(sq(4, 1)).is_none());
         assert!(review.game.position().piece_at(sq(4, 3)).is_some());
         assert_eq!(review.state.selected, None);
-        review.state.flip();
+        review.flip();
         frame(&ctx, &mut review, vec![]);
         drag(&ctx, &mut review, point(3, 6), point(3, 4)); // black e7-e5, flipped
         assert!(review.game.position().piece_at(sq(4, 6)).is_none());
@@ -325,10 +376,101 @@ mod tests {
     #[test]
     fn selecting_same_piece_deselects_and_friendly_piece_reselects() {
         let mut review = GameReview::default();
-        review.handle_input(BoardInput::Click(sq(4, 1)));
-        review.handle_input(BoardInput::Click(sq(3, 1)));
+        review.handle_input(BoardInput::Click(sq(4, 1)), 0.0);
+        review.handle_input(BoardInput::Click(sq(3, 1)), 0.0);
         assert_eq!(review.state.selected, Some(sq(3, 1)));
-        review.handle_input(BoardInput::Click(sq(3, 1)));
+        review.handle_input(BoardInput::Click(sq(3, 1)), 0.0);
         assert_eq!(review.state.selected, None);
+    }
+    fn animated_opening() -> GameReview {
+        let mut review = GameReview::default();
+        review.attempt(sq(4, 1), sq(4, 3), None, 1.0, None);
+        assert!(review.animations.is_active());
+        assert_eq!(review.game.status(), "Black to move"); // authority updates before animation completes
+        review
+    }
+
+    #[test]
+    fn undo_during_animation_cancels_motion_and_restores_authority() {
+        let mut review = animated_opening();
+        review.undo();
+        assert!(!review.animations.is_active());
+        assert_eq!(review.game.status(), "White to move");
+        assert!(review.game.position().piece_at(sq(4, 1)).is_some());
+        assert!(review.game.position().piece_at(sq(4, 3)).is_none());
+        review.animations.advance(10.0);
+        assert!(!review.animations.is_active());
+    }
+
+    #[test]
+    fn new_game_during_animation_clears_pending_visual_and_input_state() {
+        let mut review = animated_opening();
+        review.promotion = Some((sq(0, 6), sq(0, 7)));
+        review.claim_next_move = true;
+        review.new_game();
+        assert!(!review.animations.is_active());
+        assert!(review.promotion.is_none());
+        assert!(!review.claim_next_move);
+        assert!(review.state.selected.is_none());
+        assert_eq!(review.game.status(), "White to move");
+        assert!(!review.game.can_undo());
+    }
+
+    #[test]
+    fn flip_during_animation_finishes_visual_without_mutating_position() {
+        let mut review = animated_opening();
+        review.flip();
+        assert!(!review.animations.is_active());
+        assert_eq!(review.state.orientation.label(), "Black at bottom");
+        assert_eq!(review.game.status(), "Black to move");
+        assert!(review.game.position().piece_at(sq(4, 3)).is_some());
+        review.flip();
+        assert!(!review.animations.is_active());
+    }
+
+    #[test]
+    fn rapid_legal_moves_replace_old_motion_and_converge() {
+        let mut review = animated_opening();
+        review.attempt(sq(4, 6), sq(4, 4), None, 1.04, None);
+        assert_eq!(review.animations.tracks().len(), 1);
+        assert_eq!(review.animations.tracks()[0].from, sq(4, 6));
+        assert!(review.game.position().piece_at(sq(4, 3)).is_some());
+        assert!(review.game.position().piece_at(sq(4, 4)).is_some());
+        assert!(!review.animations.hides(sq(4, 3)));
+        review.animations.advance(2.0);
+        assert!(!review.animations.is_active());
+        assert_eq!(review.game.status(), "White to move");
+    }
+
+    #[test]
+    fn promotion_does_not_animate_until_confirmation() {
+        let mut review = GameReview::default();
+        for (from, to) in [
+            (sq(0, 1), sq(0, 3)),
+            (sq(7, 6), sq(7, 5)),
+            (sq(0, 3), sq(0, 4)),
+            (sq(7, 5), sq(7, 4)),
+            (sq(0, 4), sq(0, 5)),
+            (sq(7, 4), sq(7, 3)),
+            (sq(0, 5), sq(1, 6)),
+            (sq(7, 3), sq(7, 2)),
+        ] {
+            assert_eq!(review.game.try_move(from, to, None), MoveResult::Played);
+        }
+        review.attempt(sq(1, 6), sq(0, 7), None, 2.0, None);
+        assert!(review.promotion.is_some());
+        assert!(!review.animations.is_active());
+        assert_eq!(
+            review.game.position().piece_at(sq(1, 6)).unwrap().kind,
+            Kind::Pawn
+        );
+        review.attempt(sq(1, 6), sq(0, 7), Some(Kind::Knight), 3.0, None);
+        assert!(review.promotion.is_none());
+        assert!(review.animations.is_active());
+        assert_eq!(review.animations.tracks()[0].piece.kind, Kind::Knight);
+        assert_eq!(
+            review.game.position().piece_at(sq(0, 7)).unwrap().kind,
+            Kind::Knight
+        );
     }
 }

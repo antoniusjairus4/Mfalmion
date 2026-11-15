@@ -31,7 +31,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 02B · Legal piece movement");
+                ui.label("Milestone 02B.1 · Smooth piece movement");
             });
         });
         let previous = self.page;

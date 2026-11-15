@@ -2,9 +2,9 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 02B — Legal Piece Movement
+## Current milestone: 02B.1 — Smooth Piece Movement
 
-Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
+Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Click moves now glide for 200 ms; legal drags settle briefly and invalid drops snap back. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
 
 Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Stockfish, AI coaching, Chess.com sync, databases, and review calculations are **not implemented**. No statistics or engine evaluations are fabricated.
 
@@ -42,9 +42,9 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 
 ## Planned milestones
 
-02A: Native board UI. 02B: Legal moves implemented following user approval; native mouse acceptance pending. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. The user subsequently authorized committing and pushing Milestone 02B and the visual refinement. Native visual acceptance remains pending.
+No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The current 02B.1 request prohibits commits and pushes; animation changes remain local for acceptance.
 
 ## Linux graphics compatibility
 
@@ -85,3 +85,9 @@ No GUI was launched or graphically automated during 02A/02B. See [Milestone 02B]
 The board uses cream `#EEEED2` and green `#769656` squares with classic Cburnett SVG pieces. Artwork is rasterized using `resvg` (default features disabled) at display-density-aware size buckets. Parsed trees and textures are cached, with at most one live texture size for each of 12 pieces. There is no runtime download or system chess-font dependency.
 
 Artwork: Colin M. L. Burnett, GPLv2-or-later, selected from Lichess’s asset-specific grant. See [attribution and redistribution notices](assets/pieces/cburnett/ATTRIBUTION.md) and [visual refinement verification](docs/chessboard-visual-refinement.md). Rules, session state, controls, application theme and X11 setup are unchanged. Native visual acceptance is pending; no GUI was launched for this refinement.
+
+## Movement animations
+
+Click-to-move uses elapsed-time ease-out cubic motion (200 ms). Legal drops settle from the actual pointer release point (80 ms; no replay from the source), and invalid/off-board drops snap back (120 ms). The chess position updates before the visual transition. Castling moves both pieces; captures and en passant remove captured pieces immediately; promotion waits for confirmation. Undo and Flip Board finish/cancel active visual motion, while New Game clears motion and pending interactions. Resizing reprojects board-cell coordinates into the current geometry. No animation framework or dependency was added.
+
+See [Milestone 02B.1](docs/milestone-02b1.md) for timing, interruption behavior, test coverage, and the manual acceptance checklist. No GUI was launched for this checkpoint.
