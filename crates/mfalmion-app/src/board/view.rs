@@ -1,27 +1,34 @@
-use super::{Position, position::Side, state::BoardState};
+use super::{Position, Square, artwork::PieceTextures, state::BoardState};
 use crate::theme;
-use eframe::egui::{self, Align2, FontFamily, FontId, Rect, Sense, Stroke, StrokeKind, Vec2};
+use eframe::egui::{self, Align2, FontId, Rect, Sense, Stroke, StrokeKind, Vec2};
 
 const COORDINATE_MARGIN: f32 = 22.0;
 
-pub fn install_font(ctx: &egui::Context) {
-    let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "chess".into(),
-        egui::FontData::from_static(include_bytes!(
-            "../../../../assets/fonts/mfalmion-chess.ttf"
-        ))
-        .into(),
-    );
-    fonts
-        .families
-        .insert(FontFamily::Name("Chess".into()), vec!["chess".into()]);
-    ctx.set_fonts(fonts);
+#[derive(Default)]
+pub struct Highlights<'a> {
+    pub legal_targets: &'a [Square],
+    pub capture_targets: &'a [Square],
+    pub checked_king: Option<Square>,
 }
 
-/// Paint a square board, with input hit targets using the very same mapped rectangles.
-/// Position is read-only: selection and flipping can never move a piece.
-pub fn show(ui: &mut egui::Ui, position: &Position, state: &mut BoardState, desired_side: f32) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoardInput {
+    Click(Square),
+    DragStart(Square),
+    Drop { from: Square, to: Square },
+}
+
+/// Read-only painting and hit testing. The controller applies returned input through the rules library.
+pub fn show(
+    ui: &mut egui::Ui,
+    position: &Position,
+    state: &BoardState,
+    desired_side: f32,
+    textures: &mut PieceTextures,
+    highlights: Highlights<'_>,
+) -> Option<BoardInput> {
+    let mut action = None;
+    let mut dragging = None;
     let side = desired_side.min((ui.available_width() - 2.0 * COORDINATE_MARGIN).max(1.0));
     let (outer, _) =
         ui.allocate_exact_size(Vec2::splat(side + 2.0 * COORDINATE_MARGIN), Sense::hover());
@@ -42,12 +49,24 @@ pub fn show(ui: &mut egui::Ui, position: &Position, state: &mut BoardState, desi
                 .interact(
                     rect,
                     ui.id().with(("square", square.index())),
-                    Sense::click(),
+                    Sense::click_and_drag(),
                 )
                 .on_hover_cursor(egui::CursorIcon::PointingHand);
             if response.clicked() {
-                state.select(square);
-                ui.ctx().request_repaint();
+                action = Some(BoardInput::Click(square));
+            }
+            if response.drag_started() {
+                action = Some(BoardInput::DragStart(square));
+            }
+            if response.drag_stopped()
+                && let Some(pos) = response.interact_pointer_pos()
+                && board.contains(pos)
+                && let Some(to) = state.orientation.square_at(
+                    ((pos.x - board.left()) / cell).floor() as u8,
+                    ((pos.y - board.top()) / cell).floor() as u8,
+                )
+            {
+                action = Some(BoardInput::Drop { from: square, to });
             }
             let painter = ui.painter();
             painter.rect_filled(
@@ -62,30 +81,51 @@ pub fn show(ui: &mut egui::Ui, position: &Position, state: &mut BoardState, desi
             if state.selected == Some(square) {
                 painter.rect_filled(rect, 0, theme::CYAN.linear_multiply(0.24));
             }
-            if let Some(piece) = position.piece_at(square) {
-                let (fill, outline) = match piece.side {
-                    Side::White => (theme::PIECE_LIGHT, theme::PIECE_DARK),
-                    Side::Black => (theme::PIECE_DARK, theme::PIECE_LIGHT),
-                };
-                let font = FontId::new(cell * 0.83, FontFamily::Name("Chess".into()));
-                let galley = painter.layout_no_wrap(piece.glyph().into(), font, fill);
-                let origin = rect.center() - galley.size() * 0.5;
-                let thickness = (cell * 0.018).clamp(0.7, 1.5);
-                for offset in [
-                    egui::vec2(-1.0, 0.0),
-                    egui::vec2(1.0, 0.0),
-                    egui::vec2(0.0, -1.0),
-                    egui::vec2(0.0, 1.0),
-                ] {
-                    painter.galley_with_override_text_color(
-                        origin + offset * thickness,
-                        galley.clone(),
-                        outline,
+            if highlights.checked_king == Some(square) {
+                painter.rect_filled(rect, 0, theme::DANGER.linear_multiply(0.35));
+                painter.circle_filled(
+                    rect.right_top() + egui::vec2(-cell * 0.12, cell * 0.12),
+                    cell * 0.06,
+                    theme::DANGER,
+                );
+            }
+            if highlights.legal_targets.contains(&square) {
+                if highlights.capture_targets.contains(&square) {
+                    painter.circle_stroke(
+                        rect.center(),
+                        cell * 0.42,
+                        Stroke::new(5.0, theme::BACKGROUND),
+                    );
+                    painter.circle_stroke(
+                        rect.center(),
+                        cell * 0.42,
+                        Stroke::new(2.5, theme::MINT),
+                    );
+                } else {
+                    painter.circle_filled(rect.center(), cell * 0.08, theme::MINT);
+                    painter.circle_stroke(
+                        rect.center(),
+                        cell * 0.08,
+                        Stroke::new(1.5, theme::BACKGROUND),
                     );
                 }
-                painter.galley(origin, galley, fill);
+            }
+            if let Some(piece) = position.piece_at(square) {
+                if response.dragged()
+                    && let Some(pos) = response.interact_pointer_pos()
+                {
+                    dragging = Some((piece, pos));
+                } else {
+                    textures.paint(painter, rect.center(), piece, cell);
+                }
             }
             if state.selected == Some(square) {
+                painter.rect_stroke(
+                    rect.shrink(1.0),
+                    0,
+                    Stroke::new(5.0, theme::BACKGROUND),
+                    StrokeKind::Inside,
+                );
                 painter.rect_stroke(
                     rect.shrink(2.0),
                     0,
@@ -135,6 +175,10 @@ pub fn show(ui: &mut egui::Ui, position: &Position, state: &mut BoardState, desi
             theme::MUTED,
         );
     }
+    if let Some((piece, pos)) = dragging {
+        textures.paint(ui.painter(), pos, piece, cell);
+    }
+    action
 }
 
 #[cfg(test)]
@@ -158,7 +202,19 @@ mod tests {
             events,
             ..Default::default()
         };
-        let output = ctx.run_ui(input, |ui| show(ui, position, state, side));
+        let mut textures = PieceTextures::default();
+        let output = ctx.run_ui(input, |ui| {
+            if let Some(BoardInput::Click(square)) = show(
+                ui,
+                position,
+                state,
+                side,
+                &mut textures,
+                Highlights::default(),
+            ) {
+                state.select(square);
+            }
+        });
         assert!(!output.shapes.is_empty());
         let squares: Vec<_> = output
             .shapes
@@ -216,7 +272,6 @@ mod tests {
     fn rendered_hit_targets_match_both_orientations_at_two_sizes() {
         for side in [280.0, 640.0] {
             let ctx = egui::Context::default();
-            install_font(&ctx);
             let position = Position::default();
             let mut state = BoardState::default();
             frame(&ctx, &position, &mut state, side, vec![]);
@@ -233,11 +288,8 @@ mod tests {
             assert_eq!(state.selected, Square::new(7, 0)); // h1 after flip
             // Selection and orientation never modify the position snapshot.
             assert_eq!(
-                position
-                    .piece_at(Square::new(3, 0).unwrap())
-                    .unwrap()
-                    .glyph(),
-                "♛"
+                position.piece_at(Square::new(3, 0).unwrap()).unwrap().kind,
+                crate::board::position::Kind::Queen
             );
         }
     }

@@ -1,4 +1,5 @@
 use super::square::Square;
+use shakmaty::Position as _;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {
@@ -22,60 +23,62 @@ pub struct Piece {
     pub kind: Kind,
 }
 
-impl Piece {
-    // Filled silhouettes for both sides; renderer supplies contrasting fill/outline.
-    pub fn glyph(self) -> &'static str {
-        match self.kind {
-            Kind::King => "♚",
-            Kind::Queen => "♛",
-            Kind::Rook => "♜",
-            Kind::Bishop => "♝",
-            Kind::Knight => "♞",
-            Kind::Pawn => "♟",
+impl From<shakmaty::Color> for Side {
+    fn from(color: shakmaty::Color) -> Self {
+        match color {
+            shakmaty::Color::White => Self::White,
+            shakmaty::Color::Black => Self::Black,
         }
     }
 }
 
-/// A display snapshot, deliberately independent of turn, legality and move history.
-/// A future rules-library adapter can populate this snapshot without changing painting.
+impl From<shakmaty::Role> for Kind {
+    fn from(piece: shakmaty::Role) -> Self {
+        match piece {
+            shakmaty::Role::Pawn => Self::Pawn,
+            shakmaty::Role::Knight => Self::Knight,
+            shakmaty::Role::Bishop => Self::Bishop,
+            shakmaty::Role::Rook => Self::Rook,
+            shakmaty::Role::Queen => Self::Queen,
+            shakmaty::Role::King => Self::King,
+        }
+    }
+}
+
+impl From<Kind> for shakmaty::Role {
+    fn from(kind: Kind) -> Self {
+        match kind {
+            Kind::Pawn => Self::Pawn,
+            Kind::Knight => Self::Knight,
+            Kind::Bishop => Self::Bishop,
+            Kind::Rook => Self::Rook,
+            Kind::Queen => Self::Queen,
+            Kind::King => Self::King,
+        }
+    }
+}
+
+/// Read-only renderer snapshot adapted from the authoritative chess-library board.
 pub struct Position([Option<Piece>; 64]);
 
 impl Default for Position {
     fn default() -> Self {
-        let mut squares = [None; 64];
-        let back = [
-            Kind::Rook,
-            Kind::Knight,
-            Kind::Bishop,
-            Kind::Queen,
-            Kind::King,
-            Kind::Bishop,
-            Kind::Knight,
-            Kind::Rook,
-        ];
-        for (file, kind) in back.into_iter().enumerate() {
-            squares[file] = Some(Piece {
-                side: Side::White,
-                kind,
-            });
-            squares[8 + file] = Some(Piece {
-                side: Side::White,
-                kind: Kind::Pawn,
-            });
-            squares[48 + file] = Some(Piece {
-                side: Side::Black,
-                kind: Kind::Pawn,
-            });
-            squares[56 + file] = Some(Piece {
-                side: Side::Black,
-                kind,
-            });
-        }
-        Self(squares)
+        Self::from_board(&shakmaty::Chess::default())
     }
 }
 
 impl Position {
+    pub fn from_board(board: &shakmaty::Chess) -> Self {
+        Self(std::array::from_fn(|index| {
+            let square = shakmaty::Square::new(index as u32);
+            let piece = board.board().piece_at(square)?;
+            Some(Piece {
+                side: piece.color.into(),
+                kind: piece.role.into(),
+            })
+        }))
+    }
+
     pub fn piece_at(&self, square: Square) -> Option<Piece> {
         self.0[square.index()]
     }

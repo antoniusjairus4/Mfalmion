@@ -2,9 +2,11 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 02A — Native Interactive Chessboard UI
+## Current milestone: 02B — Legal Piece Movement
 
-The shell provides six navigable sections, a responsive dark theme, and application status. Game Review now contains a native 8×8 starting-position board with square selection, coordinates, and a Flip Board control. Other sections retain their placeholders. Pieces cannot move yet. Stockfish, AI coaching, Chess.com sync, databases, and chess rules are **not implemented**. No statistics or analysis are fabricated.
+Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
+
+Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Stockfish, AI coaching, Chess.com sync, databases, and review calculations are **not implemented**. No statistics or engine evaluations are fabricated.
 
 ## Development on Kali Linux
 
@@ -32,17 +34,17 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 - `crates/mfalmion-app/src/main.rs`: native startup, explicit wgpu renderer, terminal lifecycle/error logs.
 - `app.rs`: shell composition and current page state.
 - `theme.rs`: reusable palette and style.
-- `board/`: display-only position, coordinate/orientation mapping, selection state, and native egui painting.
+- `board/`: authoritative shakmaty game/session state, renderer snapshot adapter, coordinate/orientation mapping, input events, and native egui painting.
 - `ui/`: navigation, Game Review layout, and truthful placeholder screens.
 - `AGENTS.md`: permanent engineering rules.
 - `docs/`: milestone verification notes.
-- `assets/fonts/`: bundled 20 KB DejaVu chess-symbol subset and its license; no runtime font downloads.
+- `assets/pieces/cburnett/`: twelve offline SVG pieces by Colin M. L. Burnett, from the pinned Lichess source under GPLv2-or-later. Attribution, source SVGs and full license are bundled. The old font subset remains a historical unused asset and is no longer embedded or loaded.
 
 ## Planned milestones
 
-02A: Board UI implemented; manual acceptance pending. 02B: a maintained chess library and legal moves, subject to explicit approval. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Native board UI. 02B: Legal moves implemented following user approval; native mouse acceptance pending. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval; no automatic commits or pushes.
+No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. The user subsequently authorized committing and pushing Milestone 02B and the visual refinement. Native visual acceptance remains pending.
 
 ## Linux graphics compatibility
 
@@ -68,10 +70,18 @@ Runtime verification passed startup, Vulkan rendering, keyboard navigation acros
 
 The user has now manually accepted Milestone 01 startup, navigation, resizing, and shutdown using **X11/Intel Vulkan**. The original Wayland Invalid surface issue remains unresolved; the compatibility configuration is preserved.
 
-For Milestone 02A manual testing with the known-working explicit workaround:
+For Milestone 02B manual testing with the known-working explicit workaround:
 
 ```sh
 env -u WAYLAND_DISPLAY MFALMION_WINDOW_SYSTEM=x11 VK_DRIVER_FILES=/usr/share/vulkan/icd.d/intel_icd.json WGPU_BACKEND=vulkan cargo run -p mfalmion-app --offline
 ```
 
-No GUI was launched or graphically automated during 02A. See [Milestone 02A](docs/milestone-02a.md) for the board acceptance checklist and [runtime stabilization findings](docs/runtime-stabilization.md) for the historical diagnostics.
+To move: select a piece of the side to move, then click a mint-marked destination, or drag the piece there. Illegal drops snap back. Castle by moving the king to its usual c/g destination; promotion waits for your piece choice. New Game starts again; Undo Last Move restores rights, en passant, counters, and repetition history. Use the scrollbar to reach controls on smaller windows.
+
+No GUI was launched or graphically automated during 02A/02B. See [Milestone 02B](docs/milestone-02b.md) for movement verification and limitations, [Milestone 02A](docs/milestone-02a.md) for the original board checkpoint, and [runtime stabilization findings](docs/runtime-stabilization.md) for the historical diagnostics.
+
+## Chessboard artwork
+
+The board uses cream `#EEEED2` and green `#769656` squares with classic Cburnett SVG pieces. Artwork is rasterized using `resvg` (default features disabled) at display-density-aware size buckets. Parsed trees and textures are cached, with at most one live texture size for each of 12 pieces. There is no runtime download or system chess-font dependency.
+
+Artwork: Colin M. L. Burnett, GPLv2-or-later, selected from Lichess’s asset-specific grant. See [attribution and redistribution notices](assets/pieces/cburnett/ATTRIBUTION.md) and [visual refinement verification](docs/chessboard-visual-refinement.md). Rules, session state, controls, application theme and X11 setup are unchanged. Native visual acceptance is pending; no GUI was launched for this refinement.

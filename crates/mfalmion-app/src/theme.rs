@@ -8,10 +8,9 @@ pub const PURPLE: Color32 = Color32::from_rgb(175, 151, 245);
 pub const MINT: Color32 = Color32::from_rgb(115, 223, 180);
 pub const TEXT: Color32 = Color32::from_rgb(227, 234, 243);
 pub const MUTED: Color32 = Color32::from_rgb(147, 163, 183);
-pub const BOARD_DARK: Color32 = Color32::from_rgb(67, 87, 110);
-pub const BOARD_LIGHT: Color32 = Color32::from_rgb(178, 194, 206);
-pub const PIECE_LIGHT: Color32 = Color32::from_rgb(247, 245, 231);
-pub const PIECE_DARK: Color32 = Color32::from_rgb(20, 25, 36);
+pub const DANGER: Color32 = Color32::from_rgb(246, 103, 119);
+pub const BOARD_DARK: Color32 = Color32::from_rgb(0x76, 0x96, 0x56);
+pub const BOARD_LIGHT: Color32 = Color32::from_rgb(0xEE, 0xEE, 0xD2);
 
 pub fn apply(ctx: &egui::Context) {
     let mut style = (*ctx.style_of(egui::Theme::Dark)).clone();

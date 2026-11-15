@@ -19,7 +19,6 @@ impl MfalmionApp {
             );
         }
         theme::apply(&cc.egui_ctx);
-        crate::board::install_font(&cc.egui_ctx);
         Self::default()
     }
 }
@@ -32,7 +31,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 02A · Interactive board UI");
+                ui.label("Milestone 02B · Legal piece movement");
             });
         });
         let previous = self.page;

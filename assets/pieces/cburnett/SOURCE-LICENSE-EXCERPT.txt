@@ -1,0 +1,2 @@
+Excerpt of lichess-org/lila COPYING.md at revision 4a427ef69b93816aac87e0df59b44f38ea2e49fe
+public/piece/cburnett | [Colin M.L. Burnett](https://en.wikipedia.org/wiki/User:Cburnett) | [GPLv2+](https://www.gnu.org/licenses/gpl-2.0.txt)
