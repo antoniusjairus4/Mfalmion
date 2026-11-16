@@ -1,5 +1,6 @@
 mod app;
 mod board;
+mod engine;
 mod file_dialog;
 mod graphics;
 mod logging;

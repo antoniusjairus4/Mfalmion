@@ -2,11 +2,11 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 02C — PGN/FEN and Game Replay
+## Current milestone: 03 — Native Stockfish Position Analysis
 
 Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Click moves now glide for 200 ms; legal drags settle briefly and invalid drops snap back. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
 
-Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Stockfish, AI coaching, Chess.com sync, databases, and review calculations are **not implemented**. No statistics or engine evaluations are fabricated.
+Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Live position analysis uses the locally installed Stockfish 17.1 through a native asynchronous UCI adapter. AI coaching, Chess.com sync, databases, batch review calculations and Play vs Stockfish are **not implemented**. No statistics or engine evaluations are fabricated.
 
 ## Development on Kali Linux
 
@@ -35,16 +35,17 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 - `app.rs`: shell composition and current page state.
 - `theme.rs`: reusable palette and style.
 - `board/`: authoritative shakmaty game/session state, renderer snapshot adapter, coordinate/orientation mapping, input events, and native egui painting.
-- `ui/`: navigation, Game Review layout, and truthful placeholder screens.
+- `ui/`: navigation, Game Review and native analysis panel, and truthful placeholder screens.
+- `engine/`: UCI protocol/data, bounded process transport and asynchronous lifecycle worker.
 - `AGENTS.md`: permanent engineering rules.
 - `docs/`: milestone verification notes.
 - `assets/pieces/cburnett/`: twelve offline SVG pieces by Colin M. L. Burnett, from the pinned Lichess source under GPLv2-or-later. Attribution, source SVGs and full license are bundled. The old font subset remains a historical unused asset and is no longer embedded or loaded.
 
 ## Planned milestones
 
-02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser; manual acceptance is pending. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser and is accepted for this milestone. Milestone 03 adds native Stockfish live position analysis; manual acceptance is pending. Later approved milestones may add engine play, a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The 02C checkpoint was subsequently committed and pushed under explicit user authorization. The final audit fixes remain local and uncommitted for acceptance.
+No external AI assets or CUDA installations are changed. Stockfish starts only when Start Analysis is selected. The shell starts no AI server or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The 02C checkpoint was subsequently committed and pushed under explicit user authorization. Milestone 02C and its audit are accepted for this request. Milestone 03 changes remain local and uncommitted for acceptance.
 
 ## Linux graphics compatibility
 
@@ -103,3 +104,13 @@ Promotion now uses four cached graphical choices on the board. Click Queen/Rook/
 File dialogs use the existing Linux `zenity` executable, only on explicit button clicks; dialogs, file IO, and PGN parsing run in a worker. No package installation is required. Paste/copy remains available if native dialogs are unavailable. Imports are limited to 16 MiB. No external archive is scanned or loaded. See [Milestone 02C](docs/milestone-02c.md) for architecture, tests, limitations and manual acceptance.
 
 The [Milestone 02C final audit](docs/milestone-02c-audit.md) fixes result/adjudication handling, guarded session replacement, metadata spacing and file-worker reliability. The audit suite has 72 passing tests; manual native acceptance remains required. Imports retain the 16 MiB limit and additionally allow at most 200,000 total snapshots and 4,096 plies per game. PGN text must include a termination marker. Local work triggers an explicit replacement decision before switching sessions.
+
+## Live Stockfish analysis
+
+In Game Review, select **Start Analysis**. Analysis follows the authoritative position after moves, replay navigation, imported FEN/PGN, game switching and local variations. Stop disables automatic following and cancels the search; a healthy engine stays connected for reuse. Best moves are displayed only and are never played automatically.
+
+Defaults: `/usr/games/stockfish`, depth 16, MultiPV 3, two search threads and 64 MiB hash. Settings are kept in memory; use **Apply settings** during analysis. Validation limits depth to 1–32, MultiPV to 1–3, threads to 1–8 (also bounded by available parallelism), and hash to 16–512 MiB. Searches stop at the requested depth or 30 seconds, with an independent watchdog.
+
+Scores are White-positive; mate and bound scores are labeled separately. Up to three PVs are shown as validated SAN from the current position. Only complete groups from a single depth/request are displayed. The horizontal White/Black bar is a nonlinear evaluation scale, **not a win probability**, and keeps its labeled orientation when the board is flipped.
+
+No Stockfish binary is bundled, downloaded or compiled. There are no new Rust dependencies. The installed executable is launched directly without a shell. See [Milestone 03](docs/milestone-03.md) for cancellation/shutdown design, bounded mock/real tests and manual acceptance. Native GUI testing was not performed for this milestone.

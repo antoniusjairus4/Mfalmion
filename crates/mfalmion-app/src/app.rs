@@ -7,6 +7,7 @@ use eframe::egui::{self, RichText};
 #[derive(Default)]
 pub struct MfalmionApp {
     page: Page,
+    closing: bool,
     game_review: ui::game_review::GameReview,
 }
 
@@ -25,13 +26,28 @@ impl MfalmionApp {
 
 impl eframe::App for MfalmionApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        if ui.ctx().input(|i| i.viewport().close_requested()) {
+            self.game_review.shutdown_engine();
+            if !self.game_review.engine_stopped() {
+                self.closing = true;
+                ui.ctx()
+                    .send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            }
+        }
+        if self.closing {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(20));
+            if self.game_review.engine_stopped() {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+        }
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new("● Desktop shell ready").color(theme::MINT));
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 02C · PGN / FEN and replay");
+                ui.label("Milestone 03 · Stockfish analysis");
             });
         });
         let previous = self.page;
@@ -47,7 +63,9 @@ impl eframe::App for MfalmionApp {
             )
             .show(ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
-                    if self.page == Page::GameReview {
+                    if self.closing {
+                        ui.label("Stopping engine and closing…");
+                    } else if self.page == Page::GameReview {
                         self.game_review.show(ui);
                     } else {
                         ui::pages::show(ui, self.page);

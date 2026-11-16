@@ -16,6 +16,8 @@ enum SessionAction {
 #[derive(Default)]
 pub struct GameReview {
     game: Game,
+    analysis: super::engine_panel::EnginePanel,
+    analysis_session: u64,
     textures: board::PieceTextures,
     animations: board::AnimationState,
     state: BoardState,
@@ -39,6 +41,8 @@ pub struct GameReview {
 impl GameReview {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         self.poll_file();
+        self.analysis
+            .sync(self.game.authoritative(), self.analysis_session);
         ui.add_enabled_ui(self.pending_action.is_none(), |ui| self.contents(ui));
         if self.pending_action.is_some() {
             ui.ctx().stop_dragging();
@@ -48,6 +52,12 @@ impl GameReview {
                 if ui.button("Replace session").clicked() && let Some(action) = self.pending_action.take() { self.apply_action(action); }
             });
         }
+    }
+    pub fn shutdown_engine(&mut self) {
+        self.analysis.shutdown();
+    }
+    pub fn engine_stopped(&self) -> bool {
+        self.analysis.is_shutdown()
     }
     fn contents(&mut self, ui: &mut egui::Ui) {
         if self.pending_action.is_none()
@@ -72,7 +82,7 @@ impl GameReview {
             }
         }
         ui.label(
-            RichText::new("MILESTONE 02C · GAME REPLAY")
+            RichText::new("MILESTONE 03 · LIVE POSITION ANALYSIS")
                 .small()
                 .color(theme::CYAN),
         );
@@ -206,6 +216,7 @@ impl GameReview {
                     self.error = Some(error);
                     return;
                 }
+                self.analysis.invalidate();
                 self.local_work = true;
                 self.cursor = self.record.moves.len();
                 self.animations
@@ -261,6 +272,8 @@ impl GameReview {
         self.claim_next_move = false;
     }
     fn new_game(&mut self) {
+        self.analysis_session = self.analysis_session.wrapping_add(1);
+        self.analysis.invalidate();
         self.local_work = false;
         self.selected_game = None;
         self.error = None;
@@ -288,6 +301,11 @@ impl GameReview {
 
     fn navigate(&mut self, target: usize, now: f64) {
         let target = target.min(self.record.moves.len());
+        if target == self.cursor {
+            self.clear_interaction();
+            return;
+        }
+        self.analysis.invalidate();
         let before = self.game.position();
         let adjacent = self.cursor.abs_diff(target) == 1;
         self.clear_interaction();
@@ -302,6 +320,8 @@ impl GameReview {
         }
     }
     fn install(&mut self, record: crate::notation::GameRecord, protected: bool) {
+        self.analysis_session = self.analysis_session.wrapping_add(1);
+        self.analysis.invalidate();
         self.local_work = false;
         self.selected_game = None;
         self.record = record;
@@ -572,6 +592,8 @@ impl GameReview {
                 }
             }
             SessionAction::Fork => {
+                self.analysis_session = self.analysis_session.wrapping_add(1);
+                self.analysis.invalidate();
                 self.branch_base = Some(self.record.clone());
                 self.record = self.record.fork(self.cursor);
                 self.protected = false;
@@ -588,6 +610,8 @@ impl GameReview {
             .corner_radius(8)
             .inner_margin(16.0);
         frame.show(ui, |ui| {
+            self.analysis.show(ui, self.game.authoritative(), self.analysis_session);
+            ui.separator();
             ui.label(RichText::new("BOARD CONTROLS").small().color(theme::PURPLE));
             ui.label(
                 RichText::new(self.status_text())
@@ -647,13 +671,6 @@ impl GameReview {
             if self.claim_next_move {
                 ui.label(RichText::new("Declare a legal move that produces a threefold or 50-move claim. The move will not be played.").small().color(theme::MUTED));
             }
-            ui.separator();
-            ui.label("Engine evaluation");
-            ui.label(
-                RichText::new("Not connected. Both sides are controlled locally.")
-                    .small()
-                    .color(theme::MUTED),
-            );
         });
     }
 }
