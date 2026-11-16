@@ -2,7 +2,7 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 02B.1 — Smooth Piece Movement
+## Current milestone: 02C — PGN/FEN and Game Replay
 
 Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Click moves now glide for 200 ms; legal drags settle briefly and invalid drops snap back. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
 
@@ -42,9 +42,9 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 
 ## Planned milestones
 
-02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C is not started. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser; manual acceptance is pending. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The current 02B.1 request prohibits commits and pushes; animation changes remain local for acceptance.
+No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The current 02C request prohibits commits and pushes; this milestone remains local for acceptance.
 
 ## Linux graphics compatibility
 
@@ -91,3 +91,13 @@ Artwork: Colin M. L. Burnett, GPLv2-or-later, selected from Lichess’s asset-sp
 Click-to-move uses elapsed-time ease-out cubic motion (200 ms). Legal drops settle from the actual pointer release point (80 ms; no replay from the source), and invalid/off-board drops snap back (120 ms). The chess position updates before the visual transition. Castling moves both pieces; captures and en passant remove captured pieces immediately; promotion waits for confirmation. Undo and Flip Board finish/cancel active visual motion, while New Game clears motion and pending interactions. Resizing reprojects board-cell coordinates into the current geometry. No animation framework or dependency was added.
 
 See [Milestone 02B.1](docs/milestone-02b1.md) for timing, interruption behavior, test coverage, and the manual acceptance checklist. No GUI was launched for this checkpoint.
+
+## PGN/FEN and replay
+
+Game Review can import multiple games from a selected PGN file or pasted text, show metadata and SAN history, navigate with first/previous/next/last controls, and copy/export PGN. Left/Right and Home/End navigate when text input is not focused. FEN position controls validate all six fields before replacing the session and display/copy the current FEN.
+
+Imported games are read-only until **Create local variation from here** is selected. Historical play also requires that action; the forward continuation is preserved. **Return to original mainline** restores the branch source. Undo moves backward without deleting the continuation. Export/copy uses the active mainline or explicitly created local variation. New Game starts a fresh session.
+
+Promotion now uses four cached graphical choices on the board. Click Queen/Rook/Bishop/Knight; Escape or clicking outside cancels. The selector works in both orientations. Castling remains an ordinary move.
+
+File dialogs use the existing Linux `zenity` executable, only on explicit button clicks; dialogs, file IO, and PGN parsing run in a worker. No package installation is required. Paste/copy remains available if native dialogs are unavailable. Imports are limited to 16 MiB. No external archive is scanned or loaded. See [Milestone 02C](docs/milestone-02c.md) for architecture, tests, limitations and manual acceptance.

@@ -13,12 +13,41 @@ pub struct GameReview {
     promotion: Option<(Square, Square)>,
     notice: Option<&'static str>,
     claim_next_move: bool,
+    record: crate::notation::GameRecord,
+    cursor: usize,
+    imported: Vec<crate::notation::GameRecord>,
+    selected_game: usize,
+    protected: bool,
+    branch_base: Option<crate::notation::GameRecord>,
+    text_input: String,
+    fen_input: String,
+    error: Option<String>,
+    file_task: Option<std::sync::mpsc::Receiver<Result<crate::file_dialog::FileReply, String>>>,
 }
 
 impl GameReview {
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.poll_file();
+        if !ui.ctx().egui_wants_keyboard_input() && self.promotion.is_none() {
+            let target = ui.input(|i| {
+                if i.key_pressed(egui::Key::Home) {
+                    Some(0)
+                } else if i.key_pressed(egui::Key::End) {
+                    Some(self.record.moves.len())
+                } else if i.key_pressed(egui::Key::ArrowLeft) {
+                    Some(self.cursor.saturating_sub(1))
+                } else if i.key_pressed(egui::Key::ArrowRight) {
+                    Some((self.cursor + 1).min(self.record.moves.len()))
+                } else {
+                    None
+                }
+            });
+            if let Some(target) = target {
+                self.navigate(target, ui.input(|i| i.time));
+            }
+        }
         ui.label(
-            RichText::new("MILESTONE 02B.1 · SMOOTH MOVEMENT")
+            RichText::new("MILESTONE 02C · GAME REPLAY")
                 .small()
                 .color(theme::CYAN),
         );
@@ -58,7 +87,7 @@ impl GameReview {
             .selected
             .map_or_else(Vec::new, |s| self.game.capture_targets(s));
         let mut input = None;
-        ui.add_enabled_ui(self.promotion.is_none() && !self.game.is_over(), |ui| {
+        ui.add_enabled_ui(!self.game.is_over(), |ui| {
             input = board::show(
                 ui,
                 &self.game.position(),
@@ -70,7 +99,9 @@ impl GameReview {
                     capture_targets: &captures,
                     checked_king: self.game.checked_king(),
                     animations: Some(&self.animations),
-                    draggable_side: Some(self.game.side_to_move()),
+                    draggable_side: (!self.protected && self.cursor == self.record.moves.len())
+                        .then(|| self.game.side_to_move()),
+                    promotion: self.promotion.map(|(_, to)| (to, self.game.side_to_move())),
                 },
             );
         });
@@ -81,11 +112,27 @@ impl GameReview {
     }
 
     fn handle_input(&mut self, input: BoardInput, now: f64) {
-        if self.promotion.is_some() || self.game.is_over() {
+        if let Some((from, to)) = self.promotion {
+            match input {
+                BoardInput::Promote(kind) => self.attempt(from, to, Some(kind), now, None),
+                BoardInput::CancelPromotion => {
+                    self.promotion = None;
+                    self.state.selected = None;
+                }
+                _ => {}
+            }
+            return;
+        }
+        if self.game.is_over()
+            || self.record.result != "*"
+            || self.protected
+            || self.cursor != self.record.moves.len()
+        {
             return;
         }
         self.notice = None;
         match input {
+            BoardInput::Promote(_) | BoardInput::CancelPromotion => {}
             BoardInput::DragStart(square) => {
                 self.animations.clear();
                 self.state.selected = self.game.owns(square).then_some(square);
@@ -119,6 +166,7 @@ impl GameReview {
         now: f64,
         drop_origin: Option<[f32; 2]>,
     ) {
+        let before_authority = self.game.authoritative().clone();
         let before = self.game.position();
         let result = if self.claim_next_move {
             self.game.claim_with_move(from, to, promotion)
@@ -127,6 +175,19 @@ impl GameReview {
         };
         match result {
             MoveResult::Played => {
+                use shakmaty::Position as _;
+                // Derive SAN from the validated library move, never from display coordinates.
+                if let Some(mv) = before_authority.legal_moves().into_iter().find(|mv| {
+                    before_authority.clone().play(*mv).is_ok_and(|p| {
+                        crate::notation::fen(&p) == crate::notation::fen(self.game.authoritative())
+                    })
+                }) {
+                    self.record.append(mv);
+                    if self.game.status().starts_with("Draw") {
+                        self.record.result = "1/2-1/2".into();
+                    }
+                    self.cursor = self.record.moves.len();
+                }
                 self.animations
                     .transition(&before, &self.game.position(), now);
                 if let Some(origin) = drop_origin {
@@ -138,6 +199,7 @@ impl GameReview {
                 self.notice = None;
             }
             MoveResult::DrawClaimed => {
+                self.record.result = "1/2-1/2".into();
                 self.animations.clear();
                 self.state.selected = None;
                 self.claim_next_move = false;
@@ -178,15 +240,243 @@ impl GameReview {
     }
     fn new_game(&mut self) {
         self.game = Game::default();
+        self.record = crate::notation::GameRecord::default();
+        self.cursor = 0;
+        self.protected = false;
+        self.branch_base = None;
         self.clear_interaction();
     }
     fn undo(&mut self) {
-        self.game.undo();
+        if self.cursor > 0 {
+            self.navigate(self.cursor - 1, 0.0);
+        } else {
+            self.game.undo();
+        }
         self.clear_interaction();
     }
     fn flip(&mut self) {
         self.animations.clear();
         self.state.flip();
+    }
+
+    fn navigate(&mut self, target: usize, now: f64) {
+        let target = target.min(self.record.moves.len());
+        let before = self.game.position();
+        let adjacent = self.cursor.abs_diff(target) == 1;
+        self.clear_interaction();
+        self.cursor = target;
+        self.game = Game::restore(&self.record.positions, target);
+        if adjacent {
+            self.animations
+                .transition(&before, &self.game.position(), now);
+        }
+    }
+    fn install(&mut self, record: crate::notation::GameRecord, protected: bool) {
+        self.record = record;
+        self.protected = protected;
+        self.branch_base = None;
+        self.cursor = 0;
+        self.game = Game::restore(&self.record.positions, 0);
+        self.clear_interaction();
+        self.error = None;
+    }
+    fn poll_file(&mut self) {
+        let reply = self
+            .file_task
+            .as_ref()
+            .and_then(|task| task.try_recv().ok());
+        if let Some(reply) = reply {
+            self.file_task = None;
+            match reply {
+                Ok(crate::file_dialog::FileReply::Imported(records)) => {
+                    self.import_records(records)
+                }
+                Ok(crate::file_dialog::FileReply::Saved) => self.notice = Some("PGN saved."),
+                Ok(crate::file_dialog::FileReply::Cancelled) => {}
+                Err(error) => self.error = Some(error),
+            }
+        }
+    }
+    fn import_records(&mut self, records: Vec<crate::notation::GameRecord>) {
+        self.install(records[0].clone(), true);
+        self.imported = records;
+        self.selected_game = 0;
+    }
+    fn replay_controls(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        if !self.imported.is_empty() {
+            let mut selected = None;
+            egui::ComboBox::from_id_salt("imported_games")
+                .selected_text(format!(
+                    "Game {} of {}",
+                    self.selected_game + 1,
+                    self.imported.len()
+                ))
+                .show_ui(ui, |ui| {
+                    for (index, record) in self.imported.iter().enumerate() {
+                        if ui
+                            .selectable_label(
+                                self.selected_game == index,
+                                format!(
+                                    "{}: {} – {}",
+                                    index + 1,
+                                    record.headers.get("White").map_or("?", String::as_str),
+                                    record.headers.get("Black").map_or("?", String::as_str)
+                                ),
+                            )
+                            .clicked()
+                        {
+                            selected = Some(index);
+                        }
+                    }
+                });
+            if let Some(index) = selected {
+                self.selected_game = index;
+                self.install(self.imported[index].clone(), true);
+            }
+        }
+        if let (Some(white), Some(black)) = (
+            self.record.headers.get("White"),
+            self.record.headers.get("Black"),
+        ) {
+            ui.label(format!("{white} – {black}"));
+        }
+        ui.horizontal(|ui| {
+            for (label, target) in [
+                ("|<", 0),
+                ("<", self.cursor.saturating_sub(1)),
+                (">", (self.cursor + 1).min(self.record.moves.len())),
+                (">|", self.record.moves.len()),
+            ] {
+                if ui.button(label).clicked() {
+                    self.navigate(target, ui.input(|i| i.time));
+                    ui.ctx().stop_dragging();
+                }
+            }
+        });
+        ui.collapsing("Game metadata", |ui| {
+            for (name, value) in &self.record.headers {
+                ui.label(format!("{name}: {value}"));
+            }
+        });
+        ui.label(format!(
+            "Position {} / {} · {}",
+            self.cursor,
+            self.record.moves.len(),
+            self.record.result
+        ));
+        let mut jump = None;
+        egui::ScrollArea::vertical()
+            .id_salt("move_history")
+            .max_height(160.0)
+            .show(ui, |ui| {
+                egui::Grid::new("san_moves").show(ui, |ui| {
+                    use shakmaty::Position as _;
+                    for (index, san) in self.record.moves.iter().enumerate() {
+                        let pos = &self.record.positions[index];
+                        if pos.turn().is_white() || index == 0 {
+                            ui.label(format!("{}.", pos.fullmoves()));
+                            if pos.turn().is_black() {
+                                ui.label("…");
+                            }
+                        }
+                        if ui.selectable_label(self.cursor == index + 1, san).clicked() {
+                            jump = Some(index + 1);
+                        }
+                        if pos.turn().is_black() {
+                            ui.end_row();
+                        }
+                    }
+                });
+            });
+        if let Some(target) = jump {
+            self.navigate(target, ui.input(|i| i.time));
+        }
+        if self.protected || self.cursor != self.record.moves.len() {
+            ui.label("Replay is read-only. Create a local variation to play from here.");
+            if ui.button("Create local variation from here").clicked() {
+                self.branch_base = Some(self.record.clone());
+                self.record = self.record.fork(self.cursor);
+                self.protected = false;
+                self.clear_interaction();
+            }
+        }
+        if self.branch_base.is_some() {
+            ui.colored_label(theme::CYAN, "Local variation · original mainline preserved");
+            if ui.button("Return to original mainline").clicked() {
+                let original = self.branch_base.take().expect("branch base");
+                self.install(original, true);
+            }
+        }
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .add_enabled(
+                    self.file_task.is_none(),
+                    egui::Button::new("Import PGN file"),
+                )
+                .clicked()
+            {
+                self.file_task = Some(crate::file_dialog::start(None, ui.ctx().clone()));
+            }
+            if ui
+                .add_enabled(
+                    self.file_task.is_none(),
+                    egui::Button::new("Export PGN file"),
+                )
+                .clicked()
+            {
+                self.file_task = Some(crate::file_dialog::start(
+                    Some(self.record.pgn()),
+                    ui.ctx().clone(),
+                ));
+            }
+            if ui.button("Copy PGN").clicked() {
+                ui.ctx().copy_text(self.record.pgn());
+            }
+        });
+        if self.file_task.is_some() {
+            ui.label("Waiting for native file dialog / file operation…");
+        }
+        ui.collapsing("Paste PGN", |ui| {
+            ui.add(
+                egui::TextEdit::multiline(&mut self.text_input)
+                    .desired_rows(4)
+                    .desired_width(210.0),
+            );
+            if ui
+                .add_enabled(
+                    self.file_task.is_none(),
+                    egui::Button::new("Load pasted PGN"),
+                )
+                .clicked()
+            {
+                self.file_task = Some(crate::file_dialog::parse_text(
+                    self.text_input.clone(),
+                    ui.ctx().clone(),
+                ));
+            }
+        });
+        ui.collapsing("FEN position", |ui| {
+            let current = crate::notation::fen(self.game.authoritative());
+            ui.label(&current);
+            if ui.button("Copy current FEN").clicked() {
+                ui.ctx().copy_text(current);
+            }
+            ui.add(
+                egui::TextEdit::multiline(&mut self.fen_input)
+                    .desired_rows(2)
+                    .desired_width(210.0),
+            );
+            if ui.button("Load FEN as new session").clicked() {
+                match crate::notation::parse_fen(&self.fen_input) {
+                    Ok(position) => self.install(crate::notation::GameRecord::new(position), false),
+                    Err(e) => self.error = Some(e),
+                }
+            }
+        });
+        if let Some(error) = &self.error {
+            ui.colored_label(theme::DANGER, error);
+        }
     }
 
     fn details(&mut self, ui: &mut egui::Ui) {
@@ -215,27 +505,8 @@ impl GameReview {
                 ui.ctx().stop_dragging();
                 ui.ctx().request_repaint();
             }
-            if let Some((from, to)) = self.promotion {
-                ui.separator();
-                ui.label(RichText::new("Choose promotion").color(theme::CYAN));
-                ui.horizontal_wrapped(|ui| {
-                    for (label, kind) in [
-                        ("Queen", Kind::Queen),
-                        ("Rook", Kind::Rook),
-                        ("Bishop", Kind::Bishop),
-                        ("Knight", Kind::Knight),
-                    ] {
-                        if ui.button(label).clicked() {
-                            self.attempt(from, to, Some(kind), ui.input(|input| input.time), None);
-                            ui.ctx().request_repaint();
-                        }
-                    }
-                });
-                if ui.button("Cancel promotion").clicked() {
-                    self.promotion = None;
-                    ui.ctx().request_repaint();
-                }
-            }
+            if self.promotion.is_some() { ui.label("Choose a piece on the board. Escape or click outside to cancel."); }
+            self.replay_controls(ui);
             if let Some(notice) = self.notice {
                 ui.label(RichText::new(notice).color(theme::PURPLE));
             }
@@ -258,8 +529,9 @@ impl GameReview {
                 ui.ctx().request_repaint();
             }
             ui.separator();
-            if ui.add_enabled(self.promotion.is_none() && self.game.can_claim_draw(), egui::Button::new("Claim Draw")).clicked() {
+            if ui.add_enabled(self.promotion.is_none() && !self.protected && self.cursor == self.record.moves.len() && self.record.result == "*" && self.game.can_claim_draw(), egui::Button::new("Claim Draw")).clicked() {
                 self.game.claim_draw();
+                self.record.result = "1/2-1/2".into();
                 self.animations.clear();
                 self.state.selected = None;
                 self.claim_next_move = false;
@@ -285,6 +557,103 @@ impl GameReview {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_variation_can_return_to_complete_imported_mainline() {
+        let mut review = imported_review();
+        let original = review.record.pgn();
+        review.navigate(2, 1.0);
+        review.branch_base = Some(review.record.clone());
+        review.record = review.record.fork(2);
+        review.protected = false;
+        review.attempt(sq(5, 0), sq(2, 3), None, 2.0, None); // Bc4
+        assert_eq!(review.record.moves[2], "Bc4");
+        assert_eq!(review.imported[0].pgn(), original);
+        let base = review.branch_base.take().unwrap();
+        review.install(base, true);
+        review.navigate(4, 3.0);
+        assert_eq!(review.record.pgn(), original);
+        assert_eq!(review.cursor, 4);
+    }
+    #[test]
+    fn replay_restores_ep_rights_counters_and_repetition_prefix() {
+        let mut review = GameReview::default();
+        review.import_records(crate::notation::parse_pgn("1.e4 a6 2.e5 d5 3.exd6 *").unwrap());
+        review.navigate(4, 1.0);
+        assert!(review.game.capture_targets(sq(4, 4)).contains(&sq(3, 5)));
+        let expected = crate::notation::fen(review.game.authoritative());
+        review.navigate(0, 2.0);
+        review.navigate(5, 3.0);
+        review.navigate(4, 4.0);
+        assert_eq!(crate::notation::fen(review.game.authoritative()), expected);
+        let repeated =
+            crate::notation::parse_pgn("1.Nf3 Nf6 2.Ng1 Ng8 3.Nf3 Nf6 4.Ng1 Ng8 *").unwrap();
+        review.import_records(repeated);
+        review.navigate(8, 5.0);
+        assert!(review.game.can_claim_draw());
+        review.navigate(0, 6.0);
+        assert!(!review.game.can_claim_draw());
+    }
+
+    fn imported_review() -> GameReview {
+        let mut review = GameReview::default();
+        review.import_records(crate::notation::parse_pgn("1.e4 e5 2.Nf3 Nc6 *").unwrap());
+        review
+    }
+    #[test]
+    fn indexed_navigation_preserves_mainline_and_replaces_motion() {
+        let mut review = imported_review();
+        let original = review.record.pgn();
+        for target in [1, 2, 1, 0, 1, 2, 3, 4, 3, 4, 0, 4] {
+            review.navigate(target, 1.0 + target as f64 * 0.01);
+            assert_eq!(
+                crate::notation::fen(review.game.authoritative()),
+                crate::notation::fen(&review.record.positions[target])
+            );
+            assert!(review.animations.tracks().len() <= 2);
+            assert_eq!(review.record.pgn(), original);
+        }
+        review.animations.advance(10.0);
+        assert!(!review.animations.is_active());
+        review.navigate(0, 11.0);
+        assert_eq!(review.cursor, 0);
+        assert!(!review.animations.is_active());
+        review.handle_input(BoardInput::Click(sq(4, 1)), 12.0);
+        assert!(review.state.selected.is_none()); // imported mainline read-only
+    }
+    #[test]
+    fn promotion_cancel_and_both_castles_never_confused() {
+        let mut review = GameReview::default();
+        let promotion = crate::notation::parse_fen("7k/P7/8/8/8/8/8/7K w - - 0 1").unwrap();
+        review.install(crate::notation::GameRecord::new(promotion), false);
+        let before = crate::notation::fen(review.game.authoritative());
+        review.handle_input(
+            BoardInput::Drop {
+                from: sq(0, 6),
+                to: Some(sq(0, 7)),
+                at: [0.5, 7.5],
+            },
+            1.0,
+        );
+        assert!(review.promotion.is_some());
+        review.handle_input(BoardInput::Click(sq(7, 0)), 1.1);
+        assert!(review.promotion.is_some());
+        review.handle_input(BoardInput::CancelPromotion, 1.2);
+        assert!(review.promotion.is_none());
+        assert_eq!(crate::notation::fen(review.game.authoritative()), before);
+        for to in [2, 6] {
+            let position =
+                crate::notation::parse_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").unwrap();
+            review.install(crate::notation::GameRecord::new(position), false);
+            review.attempt(sq(4, 0), sq(to, 0), None, 2.0, None);
+            assert!(review.promotion.is_none());
+            assert_eq!(
+                review.game.position().piece_at(sq(to, 0)).unwrap().kind,
+                Kind::King
+            );
+            assert_eq!(review.animations.tracks().len(), 2);
+        }
+    }
 
     fn sq(file: u8, rank: u8) -> Square {
         Square::new(file, rank).unwrap()

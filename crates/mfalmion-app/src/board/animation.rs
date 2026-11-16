@@ -101,11 +101,14 @@ impl AnimationState {
                 // Promotion is the only role-changing arrival in a forward standard-chess move.
                 let promotion = || {
                     removed.iter().position(|entry| {
-                        entry.is_some_and(|(_, old)| {
+                        entry.is_some_and(|(from, old)| {
                             old.side == piece.side
-                                && old.kind == Kind::Pawn
-                                && piece.kind != Kind::Pawn
-                                && (to.rank() == 0 || to.rank() == 7)
+                                && ((old.kind == Kind::Pawn
+                                    && piece.kind != Kind::Pawn
+                                    && (to.rank() == 0 || to.rank() == 7))
+                                    || (piece.kind == Kind::Pawn
+                                        && old.kind != Kind::Pawn
+                                        && (from.rank() == 0 || from.rank() == 7)))
                         })
                     })
                 };
@@ -179,6 +182,33 @@ mod tests {
             (actual[1] - expected[1]).abs() < 0.0001,
             "{actual:?} != {expected:?}"
         );
+    }
+
+    #[test]
+    fn replay_reverse_special_moves_and_rapid_replacement_are_safe() {
+        for source in [
+            "[FEN \"r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1\"]\n1.O-O *",
+            "[FEN \"7k/P7/8/8/8/8/8/7K w - - 0 1\"]\n1.a8=Q+ *",
+            "1.e4 a6 2.e5 d5 3.exd6 *",
+        ] {
+            let record = crate::notation::parse_pgn(source).unwrap().remove(0);
+            let last = record.positions.len() - 1;
+            let before = Position::from_board(&record.positions[last - 1]);
+            let after = Position::from_board(&record.positions[last]);
+            let mut animation = AnimationState::default();
+            for index in 0..10 {
+                animation.transition(&before, &after, index as f64 * 0.01);
+                assert!(!animation.tracks().is_empty());
+                animation.transition(&after, &before, index as f64 * 0.01 + 0.005);
+                assert!(!animation.tracks().is_empty());
+                assert!(animation.tracks().len() <= 2);
+                for track in animation.tracks() {
+                    assert_eq!(before.piece_at(track.to), Some(track.piece));
+                }
+            }
+            animation.advance(10.0);
+            assert!(!animation.is_active());
+        }
     }
 
     #[test]

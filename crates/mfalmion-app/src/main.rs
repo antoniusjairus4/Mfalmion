@@ -1,7 +1,9 @@
 mod app;
 mod board;
+mod file_dialog;
 mod graphics;
 mod logging;
+mod notation;
 mod theme;
 mod ui;
 

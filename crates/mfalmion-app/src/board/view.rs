@@ -17,11 +17,14 @@ pub struct Highlights<'a> {
     pub checked_king: Option<Square>,
     pub animations: Option<&'a AnimationState>,
     pub draggable_side: Option<Side>,
+    pub promotion: Option<(Square, Side)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum BoardInput {
     Click(Square),
+    Promote(super::Kind),
+    CancelPromotion,
     DragStart(Square),
     Drop {
         from: Square,
@@ -101,7 +104,9 @@ pub fn show(
         );
         let piece = position.piece_at(square);
         let draggable = piece.is_some_and(|p| Some(p.side) == highlights.draggable_side);
-        let sense = if draggable {
+        let sense = if highlights.promotion.is_some() {
+            Sense::hover()
+        } else if draggable {
             Sense::click_and_drag()
         } else {
             Sense::click()
@@ -260,12 +265,88 @@ pub fn show(
             theme::MUTED,
         );
     }
+    if let Some((target, side)) = highlights.promotion {
+        let selector = promotion_rect(geometry.board, geometry.rect(target));
+        let size = selector.width();
+        for (index, kind) in [
+            super::Kind::Queen,
+            super::Kind::Rook,
+            super::Kind::Bishop,
+            super::Kind::Knight,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let rect = Rect::from_min_size(
+                selector.min + egui::vec2(0.0, index as f32 * size),
+                Vec2::splat(size),
+            );
+            let response = ui.interact(rect, ui.id().with(("promotion", index)), Sense::click());
+            ui.painter().rect_filled(
+                rect,
+                2,
+                if response.hovered() {
+                    theme::MINT
+                } else {
+                    theme::BOARD_LIGHT
+                },
+            );
+            textures.paint(
+                ui.painter(),
+                rect.center(),
+                super::position::Piece { side, kind },
+                size,
+            );
+            if response.clicked() {
+                action = Some(BoardInput::Promote(kind));
+            }
+        }
+        if ui.input(|i| {
+            i.key_pressed(egui::Key::Escape)
+                || (i.pointer.primary_clicked()
+                    && i.pointer
+                        .interact_pos()
+                        .is_some_and(|p| !selector.contains(p)))
+        }) {
+            action = Some(BoardInput::CancelPromotion);
+        }
+    }
     action
+}
+fn promotion_rect(board: Rect, target: Rect) -> Rect {
+    let size = target.width().min(72.0);
+    Rect::from_min_size(
+        egui::pos2(
+            target.left().clamp(board.left(), board.right() - size),
+            target.top().clamp(board.top(), board.bottom() - 4.0 * size),
+        ),
+        egui::vec2(size, 4.0 * size),
+    )
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::board::{square::Square, state::Orientation};
+
+    #[test]
+    fn promotion_placement_stays_inside_both_orientations() {
+        for orientation in [Orientation::WhiteBottom, Orientation::BlackBottom] {
+            for size in [160.0, 280.0, 640.0] {
+                let geometry = Geometry {
+                    board: Rect::from_min_size(egui::pos2(22.0, 22.0), Vec2::splat(size)),
+                    orientation,
+                };
+                for rank in [0, 7] {
+                    for file in 0..8 {
+                        let target = geometry.rect(Square::new(file, rank).unwrap());
+                        let chooser = promotion_rect(geometry.board, target);
+                        assert!(geometry.board.contains_rect(chooser));
+                        assert!((chooser.left() - target.left()).abs() < 0.01);
+                    }
+                }
+            }
+        }
+    }
 
     /// CPU-only egui passes: no native window, display connection, or GPU initialization.
     fn frame(

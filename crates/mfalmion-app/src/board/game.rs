@@ -33,10 +33,21 @@ fn ui_square(square: shakmaty::Square) -> Square {
 }
 
 impl Game {
-    fn with_board(board: Chess) -> Self {
+    pub fn with_board(board: Chess) -> Self {
         Self {
             board,
             history: Vec::new(),
+            claimed_draw: None,
+        }
+    }
+
+    pub fn authoritative(&self) -> &Chess {
+        &self.board
+    }
+    pub fn restore(positions: &[Chess], cursor: usize) -> Self {
+        Self {
+            board: positions[cursor].clone(),
+            history: positions[..cursor].to_vec(),
             claimed_draw: None,
         }
     }
