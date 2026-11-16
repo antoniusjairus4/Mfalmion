@@ -44,7 +44,7 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 
 02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser; manual acceptance is pending. Later approved milestones will add Stockfish UCI analysis/play, PGN and a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The current 02C request prohibits commits and pushes; this milestone remains local for acceptance.
+No external AI assets or CUDA installations are changed. The shell starts no engine, AI server, or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The 02C checkpoint was subsequently committed and pushed under explicit user authorization. The final audit fixes remain local and uncommitted for acceptance.
 
 ## Linux graphics compatibility
 
@@ -101,3 +101,5 @@ Imported games are read-only until **Create local variation from here** is selec
 Promotion now uses four cached graphical choices on the board. Click Queen/Rook/Bishop/Knight; Escape or clicking outside cancels. The selector works in both orientations. Castling remains an ordinary move.
 
 File dialogs use the existing Linux `zenity` executable, only on explicit button clicks; dialogs, file IO, and PGN parsing run in a worker. No package installation is required. Paste/copy remains available if native dialogs are unavailable. Imports are limited to 16 MiB. No external archive is scanned or loaded. See [Milestone 02C](docs/milestone-02c.md) for architecture, tests, limitations and manual acceptance.
+
+The [Milestone 02C final audit](docs/milestone-02c-audit.md) fixes result/adjudication handling, guarded session replacement, metadata spacing and file-worker reliability. The audit suite has 72 passing tests; manual native acceptance remains required. Imports retain the 16 MiB limit and additionally allow at most 200,000 total snapshots and 4,096 plies per game. PGN text must include a termination marker. Local work triggers an explicit replacement decision before switching sessions.

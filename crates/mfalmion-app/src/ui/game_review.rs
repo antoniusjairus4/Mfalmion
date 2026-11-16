@@ -4,6 +4,15 @@ use crate::{
 };
 use eframe::egui::{self, RichText};
 
+enum SessionAction {
+    NewGame,
+    Install(Box<crate::notation::GameRecord>, bool),
+    Select(usize),
+    Import(Vec<crate::notation::GameRecord>),
+    Return,
+    Fork,
+}
+
 #[derive(Default)]
 pub struct GameReview {
     game: Game,
@@ -16,19 +25,35 @@ pub struct GameReview {
     record: crate::notation::GameRecord,
     cursor: usize,
     imported: Vec<crate::notation::GameRecord>,
-    selected_game: usize,
+    selected_game: Option<usize>,
     protected: bool,
     branch_base: Option<crate::notation::GameRecord>,
     text_input: String,
     fen_input: String,
     error: Option<String>,
-    file_task: Option<std::sync::mpsc::Receiver<Result<crate::file_dialog::FileReply, String>>>,
+    local_work: bool,
+    pending_action: Option<SessionAction>,
+    file_task: Option<crate::file_dialog::FileTask>,
 }
 
 impl GameReview {
     pub fn show(&mut self, ui: &mut egui::Ui) {
         self.poll_file();
-        if !ui.ctx().egui_wants_keyboard_input() && self.promotion.is_none() {
+        ui.add_enabled_ui(self.pending_action.is_none(), |ui| self.contents(ui));
+        if self.pending_action.is_some() {
+            ui.ctx().stop_dragging();
+            egui::Window::new("Replace local work?").collapsible(false).resizable(false).show(ui.ctx(), |ui| {
+                ui.label("This action replaces local moves or an analysis position. Export or copy the PGN first if you want to keep it.");
+                if ui.button("Keep current session").clicked() { self.pending_action = None; }
+                if ui.button("Replace session").clicked() && let Some(action) = self.pending_action.take() { self.apply_action(action); }
+            });
+        }
+    }
+    fn contents(&mut self, ui: &mut egui::Ui) {
+        if self.pending_action.is_none()
+            && !ui.ctx().egui_wants_keyboard_input()
+            && self.promotion.is_none()
+        {
             let target = ui.input(|i| {
                 if i.key_pressed(egui::Key::Home) {
                     Some(0)
@@ -86,6 +111,7 @@ impl GameReview {
             .state
             .selected
             .map_or_else(Vec::new, |s| self.game.capture_targets(s));
+        let draggable_side = self.can_play().then(|| self.game.side_to_move());
         let mut input = None;
         ui.add_enabled_ui(!self.game.is_over(), |ui| {
             input = board::show(
@@ -99,8 +125,7 @@ impl GameReview {
                     capture_targets: &captures,
                     checked_king: self.game.checked_king(),
                     animations: Some(&self.animations),
-                    draggable_side: (!self.protected && self.cursor == self.record.moves.len())
-                        .then(|| self.game.side_to_move()),
+                    draggable_side,
                     promotion: self.promotion.map(|(_, to)| (to, self.game.side_to_move())),
                 },
             );
@@ -123,11 +148,7 @@ impl GameReview {
             }
             return;
         }
-        if self.game.is_over()
-            || self.record.result != "*"
-            || self.protected
-            || self.cursor != self.record.moves.len()
-        {
+        if !self.can_play() {
             return;
         }
         self.notice = None;
@@ -166,7 +187,6 @@ impl GameReview {
         now: f64,
         drop_origin: Option<[f32; 2]>,
     ) {
-        let before_authority = self.game.authoritative().clone();
         let before = self.game.position();
         let result = if self.claim_next_move {
             self.game.claim_with_move(from, to, promotion)
@@ -175,19 +195,19 @@ impl GameReview {
         };
         match result {
             MoveResult::Played => {
-                use shakmaty::Position as _;
-                // Derive SAN from the validated library move, never from display coordinates.
-                if let Some(mv) = before_authority.legal_moves().into_iter().find(|mv| {
-                    before_authority.clone().play(*mv).is_ok_and(|p| {
-                        crate::notation::fen(&p) == crate::notation::fen(self.game.authoritative())
-                    })
-                }) {
-                    self.record.append(mv);
-                    if self.game.status().starts_with("Draw") {
-                        self.record.result = "1/2-1/2".into();
-                    }
-                    self.cursor = self.record.moves.len();
+                let saved = self
+                    .game
+                    .last_played()
+                    .ok_or_else(|| "Missing validated move identifier".to_owned())
+                    .and_then(|mv| self.record.append(mv));
+                if let Err(error) = saved {
+                    self.game = Game::restore(&self.record.positions, self.cursor);
+                    self.clear_interaction();
+                    self.error = Some(error);
+                    return;
                 }
+                self.local_work = true;
+                self.cursor = self.record.moves.len();
                 self.animations
                     .transition(&before, &self.game.position(), now);
                 if let Some(origin) = drop_origin {
@@ -200,6 +220,8 @@ impl GameReview {
             }
             MoveResult::DrawClaimed => {
                 self.record.result = "1/2-1/2".into();
+                self.record.claimed_draw = self.game.claimed_draw();
+                self.local_work = true;
                 self.animations.clear();
                 self.state.selected = None;
                 self.claim_next_move = false;
@@ -239,6 +261,9 @@ impl GameReview {
         self.claim_next_move = false;
     }
     fn new_game(&mut self) {
+        self.local_work = false;
+        self.selected_game = None;
+        self.error = None;
         self.game = Game::default();
         self.record = crate::notation::GameRecord::default();
         self.cursor = 0;
@@ -249,8 +274,10 @@ impl GameReview {
     fn undo(&mut self) {
         if self.cursor > 0 {
             self.navigate(self.cursor - 1, 0.0);
-        } else {
-            self.game.undo();
+        } else if self.game.undo() && self.record.claimed_draw.take().is_some() {
+            use shakmaty::Position as _;
+            self.record.result = self.game.authoritative().outcome().to_string();
+            self.local_work = true;
         }
         self.clear_interaction();
     }
@@ -266,17 +293,25 @@ impl GameReview {
         self.clear_interaction();
         self.cursor = target;
         self.game = Game::restore(&self.record.positions, target);
+        if target == self.record.moves.len() {
+            self.game.restore_claim(self.record.claimed_draw);
+        }
         if adjacent {
             self.animations
                 .transition(&before, &self.game.position(), now);
         }
     }
     fn install(&mut self, record: crate::notation::GameRecord, protected: bool) {
+        self.local_work = false;
+        self.selected_game = None;
         self.record = record;
         self.protected = protected;
         self.branch_base = None;
         self.cursor = 0;
         self.game = Game::restore(&self.record.positions, 0);
+        if self.record.moves.is_empty() {
+            self.game.restore_claim(self.record.claimed_draw);
+        }
         self.clear_interaction();
         self.error = None;
     }
@@ -284,39 +319,51 @@ impl GameReview {
         let reply = self
             .file_task
             .as_ref()
-            .and_then(|task| task.try_recv().ok());
+            .and_then(|task| match task.try_recv() {
+                Ok(reply) => Some(reply),
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    Some(Err("File worker stopped before returning a result".into()))
+                }
+            });
         if let Some(reply) = reply {
             self.file_task = None;
-            match reply {
-                Ok(crate::file_dialog::FileReply::Imported(records)) => {
-                    self.import_records(records)
-                }
-                Ok(crate::file_dialog::FileReply::Saved) => self.notice = Some("PGN saved."),
-                Ok(crate::file_dialog::FileReply::Cancelled) => {}
-                Err(error) => self.error = Some(error),
+            self.finish_file(reply);
+        }
+    }
+    fn finish_file(&mut self, reply: Result<crate::file_dialog::FileReply, String>) {
+        match reply {
+            Ok(crate::file_dialog::FileReply::Imported(records)) => {
+                self.request_action(SessionAction::Import(records))
             }
+            Ok(crate::file_dialog::FileReply::Saved) => self.notice = Some("PGN snapshot saved."),
+            Ok(crate::file_dialog::FileReply::Cancelled) => {}
+            Err(error) => self.error = Some(error),
         }
     }
     fn import_records(&mut self, records: Vec<crate::notation::GameRecord>) {
-        self.install(records[0].clone(), true);
+        let Some(first) = records.first() else {
+            self.error = Some("No imported games".into());
+            return;
+        };
+        self.install(first.clone(), true);
         self.imported = records;
-        self.selected_game = 0;
+        self.selected_game = Some(0);
     }
     fn replay_controls(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         if !self.imported.is_empty() {
             let mut selected = None;
             egui::ComboBox::from_id_salt("imported_games")
-                .selected_text(format!(
-                    "Game {} of {}",
-                    self.selected_game + 1,
-                    self.imported.len()
+                .selected_text(self.selected_game.map_or_else(
+                    || "Imported games".into(),
+                    |index| format!("Game {} of {}", index + 1, self.imported.len()),
                 ))
                 .show_ui(ui, |ui| {
                     for (index, record) in self.imported.iter().enumerate() {
                         if ui
                             .selectable_label(
-                                self.selected_game == index,
+                                self.selected_game == Some(index),
                                 format!(
                                     "{}: {} – {}",
                                     index + 1,
@@ -331,8 +378,7 @@ impl GameReview {
                     }
                 });
             if let Some(index) = selected {
-                self.selected_game = index;
-                self.install(self.imported[index].clone(), true);
+                self.request_action(SessionAction::Select(index));
             }
         }
         if let (Some(white), Some(black)) = (
@@ -395,17 +441,13 @@ impl GameReview {
         if self.protected || self.cursor != self.record.moves.len() {
             ui.label("Replay is read-only. Create a local variation to play from here.");
             if ui.button("Create local variation from here").clicked() {
-                self.branch_base = Some(self.record.clone());
-                self.record = self.record.fork(self.cursor);
-                self.protected = false;
-                self.clear_interaction();
+                self.request_action(SessionAction::Fork);
             }
         }
         if self.branch_base.is_some() {
             ui.colored_label(theme::CYAN, "Local variation · original mainline preserved");
             if ui.button("Return to original mainline").clicked() {
-                let original = self.branch_base.take().expect("branch base");
-                self.install(original, true);
+                self.request_action(SessionAction::Return);
             }
         }
         ui.horizontal_wrapped(|ui| {
@@ -469,13 +511,73 @@ impl GameReview {
             );
             if ui.button("Load FEN as new session").clicked() {
                 match crate::notation::parse_fen(&self.fen_input) {
-                    Ok(position) => self.install(crate::notation::GameRecord::new(position), false),
+                    Ok(position) => self.request_action(SessionAction::Install(
+                        Box::new(crate::notation::GameRecord::new(position)),
+                        false,
+                    )),
                     Err(e) => self.error = Some(e),
                 }
             }
         });
         if let Some(error) = &self.error {
             ui.colored_label(theme::DANGER, error);
+        }
+    }
+
+    fn can_play(&self) -> bool {
+        !self.game.is_over()
+            && self.record.result == "*"
+            && !self.protected
+            && self.cursor == self.record.moves.len()
+            && self.pending_action.is_none()
+    }
+    fn status_text(&self) -> String {
+        if self.cursor == self.record.moves.len() && self.record.result != "*" {
+            format!("Result {} · {}", self.record.result, self.game.status())
+        } else {
+            self.game.status().into()
+        }
+    }
+    fn request_action(&mut self, action: SessionAction) {
+        if self.pending_action.is_some() {
+            return;
+        }
+        if self.local_work {
+            self.clear_interaction();
+            self.pending_action = Some(action);
+        } else {
+            self.apply_action(action);
+        }
+    }
+    fn apply_action(&mut self, action: SessionAction) {
+        match action {
+            SessionAction::NewGame => self.new_game(),
+            SessionAction::Install(record, protected) => {
+                self.install(*record, protected);
+                self.local_work = !protected;
+            }
+            SessionAction::Select(index) => {
+                if let Some(record) = self.imported.get(index) {
+                    let record = record.clone();
+                    self.install(record, true);
+                    self.selected_game = Some(index);
+                }
+            }
+            SessionAction::Import(records) => self.import_records(records),
+            SessionAction::Return => {
+                if let Some(record) = self.branch_base.take() {
+                    let origin = self.selected_game;
+                    self.install(record, true);
+                    self.selected_game = origin;
+                }
+            }
+            SessionAction::Fork => {
+                self.branch_base = Some(self.record.clone());
+                self.record = self.record.fork(self.cursor);
+                self.protected = false;
+                self.local_work = true;
+                self.clear_interaction();
+            }
         }
     }
 
@@ -488,7 +590,7 @@ impl GameReview {
         frame.show(ui, |ui| {
             ui.label(RichText::new("BOARD CONTROLS").small().color(theme::PURPLE));
             ui.label(
-                RichText::new(self.game.status())
+                RichText::new(self.status_text())
                     .size(18.0)
                     .color(theme::MINT),
             );
@@ -519,7 +621,7 @@ impl GameReview {
                 .color(theme::MUTED),
             );
             if ui.button("New Game").clicked() {
-                self.new_game();
+                self.request_action(SessionAction::NewGame);
                 ui.ctx().stop_dragging();
                 ui.ctx().request_repaint();
             }
@@ -532,12 +634,14 @@ impl GameReview {
             if ui.add_enabled(self.promotion.is_none() && !self.protected && self.cursor == self.record.moves.len() && self.record.result == "*" && self.game.can_claim_draw(), egui::Button::new("Claim Draw")).clicked() {
                 self.game.claim_draw();
                 self.record.result = "1/2-1/2".into();
+                self.record.claimed_draw = self.game.claimed_draw();
+                self.local_work = true;
                 self.animations.clear();
                 self.state.selected = None;
                 self.claim_next_move = false;
                 ui.ctx().request_repaint();
             }
-            ui.add_enabled_ui(!self.game.is_over() && self.promotion.is_none(), |ui| {
+            ui.add_enabled_ui(self.can_play() && self.promotion.is_none(), |ui| {
                 ui.checkbox(&mut self.claim_next_move, "Claim draw with next move");
             });
             if self.claim_next_move {
@@ -557,6 +661,128 @@ impl GameReview {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audit_invalid_import_keeps_loaded_game_and_selected_ply() {
+        let mut review = imported_review();
+        review.navigate(3, 1.0);
+        let source = review.record.pgn();
+        let before = crate::notation::fen(review.game.authoritative());
+        review.finish_file(
+            crate::notation::parse_pgn("1.e5 *").map(crate::file_dialog::FileReply::Imported),
+        );
+        assert_eq!(review.record.pgn(), source);
+        assert_eq!(review.imported.len(), 1);
+        assert_eq!(review.selected_game, Some(0));
+        assert_eq!(review.cursor, 3);
+        assert_eq!(crate::notation::fen(review.game.authoritative()), before);
+    }
+
+    #[test]
+    fn audit_cpu_only_promotion_hit_targets_both_colors_and_orientations() {
+        for (fen, from, to) in [
+            ("7k/P7/8/8/8/8/8/7K w - - 0 1", sq(0, 6), sq(0, 7)),
+            ("7k/8/8/8/8/8/p7/7K b - - 0 1", sq(0, 1), sq(0, 0)),
+        ] {
+            for flipped in [false, true] {
+                for (index, kind) in [Kind::Queen, Kind::Rook, Kind::Bishop, Kind::Knight]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let ctx = egui::Context::default();
+                    let mut review = GameReview::default();
+                    review.install(
+                        crate::notation::GameRecord::new(crate::notation::parse_fen(fen).unwrap()),
+                        false,
+                    );
+                    if flipped {
+                        review.state.flip();
+                    }
+                    let orientation = review.state.orientation;
+                    review.attempt(from, to, None, 0.0, None);
+                    assert!(review.promotion.is_some());
+                    frame(&ctx, &mut review, vec![]);
+                    let display = orientation
+                        .project([f32::from(to.file()) + 0.5, f32::from(to.rank()) + 0.5]);
+                    let column = display[0].floor() as u8;
+                    let row = (display[1].floor() as u8).min(4) + index as u8;
+                    click(&ctx, &mut review, column, row);
+                    assert!(review.promotion.is_none());
+                    assert_eq!(review.game.position().piece_at(to).unwrap().kind, kind);
+                    assert_eq!(review.record.moves.len(), 1);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn audit_replacement_requires_explicit_decision_and_invalid_import_preserves_work() {
+        let mut review = animated_opening();
+        let before = review.record.pgn();
+        review.finish_file(Err("Invalid PGN".into()));
+        assert_eq!(review.record.pgn(), before);
+        assert!(review.error.is_some());
+        for action in [
+            SessionAction::NewGame,
+            SessionAction::Select(0),
+            SessionAction::Fork,
+            SessionAction::Return,
+            SessionAction::Import(crate::notation::parse_pgn("1.d4 *").unwrap()),
+            SessionAction::Install(Box::default(), false),
+        ] {
+            review.request_action(action);
+            assert!(review.pending_action.is_some());
+            assert_eq!(review.record.pgn(), before);
+            assert!(!review.can_play());
+            review.pending_action = None; // Keep current session
+        }
+        review.request_action(SessionAction::NewGame);
+        let action = review.pending_action.take().unwrap();
+        review.apply_action(action);
+        assert_eq!(review.cursor, 0);
+        assert!(review.record.moves.is_empty());
+        assert!(!review.local_work);
+        assert_eq!(review.selected_game, None);
+    }
+    #[test]
+    fn audit_claimed_draw_survives_replay_and_final_result_blocks_input() {
+        let mut review = GameReview::default();
+        review.import_records(
+            crate::notation::parse_pgn("1.Nf3 Nf6 2.Ng1 Ng8 3.Nf3 Nf6 4.Ng1 Ng8 *").unwrap(),
+        );
+        review.navigate(8, 0.0);
+        review.apply_action(SessionAction::Fork);
+        review.claim_next_move = true;
+        // Current-position claim uses the same persisted adjudication as intended-move claims.
+        assert!(review.game.claim_draw());
+        review.record.claimed_draw = review.game.claimed_draw();
+        review.record.result = "1/2-1/2".into();
+        review.navigate(0, 1.0);
+        assert!(!review.game.is_over());
+        review.navigate(8, 2.0);
+        assert!(review.game.is_over());
+        assert!(!review.can_play());
+        assert!(review.status_text().contains("1/2-1/2"));
+        assert!(review.record.pgn().ends_with("1/2-1/2\n"));
+    }
+
+    #[test]
+    fn audit_claim_at_root_can_be_undone_and_replayed() {
+        let mut review = GameReview::default();
+        review.install(
+            crate::notation::GameRecord::new(
+                crate::notation::parse_fen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 100 51").unwrap(),
+            ),
+            false,
+        );
+        assert!(review.game.claim_draw());
+        review.record.result = "1/2-1/2".into();
+        review.record.claimed_draw = review.game.claimed_draw();
+        review.navigate(0, 1.0);
+        assert!(review.game.is_over(), "navigation lost adjudication");
+        review.undo();
+        assert_eq!(review.record.result, "*");
+    }
 
     #[test]
     fn local_variation_can_return_to_complete_imported_mainline() {
@@ -824,7 +1050,8 @@ mod tests {
             (sq(0, 5), sq(1, 6)),
             (sq(7, 3), sq(7, 2)),
         ] {
-            assert_eq!(review.game.try_move(from, to, None), MoveResult::Played);
+            review.attempt(from, to, None, 0.0, None);
+            assert!(review.error.is_none());
         }
         review.attempt(sq(1, 6), sq(0, 7), None, 2.0, None);
         assert!(review.promotion.is_some());

@@ -19,6 +19,7 @@ pub struct Game {
     board: Chess,
     /// Full previous positions, including counters, rights and EP. Also the exact repetition record.
     history: Vec<Chess>,
+    last_played: Option<Move>,
     claimed_draw: Option<&'static str>,
 }
 
@@ -37,10 +38,20 @@ impl Game {
         Self {
             board,
             history: Vec::new(),
+            last_played: None,
             claimed_draw: None,
         }
     }
 
+    pub fn last_played(&self) -> Option<Move> {
+        self.last_played
+    }
+    pub fn claimed_draw(&self) -> Option<&'static str> {
+        self.claimed_draw
+    }
+    pub fn restore_claim(&mut self, reason: Option<&'static str>) {
+        self.claimed_draw = reason;
+    }
     pub fn authoritative(&self) -> &Chess {
         &self.board
     }
@@ -48,6 +59,7 @@ impl Game {
         Self {
             board: positions[cursor].clone(),
             history: positions[..cursor].to_vec(),
+            last_played: None,
             claimed_draw: None,
         }
     }
@@ -130,6 +142,7 @@ impl Game {
         !self.history.is_empty() || self.claimed_draw.is_some()
     }
     pub fn undo(&mut self) -> bool {
+        self.last_played = None;
         let claim_cleared = self.claimed_draw.take().is_some();
         if let Some(previous) = self.history.pop() {
             self.board = previous;
@@ -244,6 +257,7 @@ impl Game {
             self.claimed_draw = Some(reason);
             MoveResult::DrawClaimed
         } else {
+            self.last_played = Some(mv);
             self.history.push(std::mem::replace(&mut self.board, next));
             MoveResult::Played
         }
