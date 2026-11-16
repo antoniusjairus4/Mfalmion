@@ -63,7 +63,7 @@ Ewhite(-16) = 0.4800106598444182
 loss        = 0.07600323070020171
 ```
 
-This is about 7.6003 percentage points on the **heuristic quality scale**, not a calibrated probability of winning. The independent logistic identity, fixed numeric values and White/Black complement are regression-tested.
+This is about 7.6003 percentage points on the **heuristic quality scale**, not a calibrated probability of winning. Near equality the slope is 1/800 per centipawn, so a 0.06 cutoff corresponds to roughly a 48-cp deterioration: a strict model boundary. The independent logistic identity, fixed numeric values and White/Black complement are regression-tested.
 
 The move's source is timeline index 0→1. Stored position 0 is the standard initial White-to-move FEN. Position 1 is:
 
@@ -75,7 +75,7 @@ rnbqkbnr/pppppppp/8/8/8/1P6/P1PPPPPP/RNBQKBNR b KQkq - 0 1
 
 ## Deeper temporary Stockfish comparison
 
-One Stockfish process performed **10 sequential depth-20 searches**, covering the standard initial position and all nine distinct first moves in this account. Settings remained **MultiPV 3, Threads 2, Hash 64 MiB**, with the same Stockfish 17.1 executable. The existing production adapter supplied the complete initial FEN plus move history, reset the hash/new-game search state, checked engine identity and legal PVs, and required complete depth-20 rank groups and `bestmove`. The existing 30-second per-search cap remained; all requests reached depth 20 with exact bounds. Total explicit diagnostic test runtime: **33.19 seconds**.
+One Stockfish process performed **10 sequential depth-20 searches**, covering the standard initial position and all nine distinct first moves in this account. Settings remained **MultiPV 3, Threads 2, Hash 64 MiB**, with the same Stockfish 17.1 executable. The existing production adapter supplied the complete initial FEN plus move history, reset the hash/new-game search state, checked engine identity and legal PVs, and required complete depth-20 rank groups and `bestmove`. The existing 30-second per-search cap remained; all requests reached depth 20 with exact bounds. An exact UCI bound does not mean the finite-depth evaluation is the true game-theoretic value. Total explicit diagnostic test runtime: **33.19 seconds**.
 
 No database was opened by this diagnostic. Results were written only to a new temporary JSON file and copied into the [depth-20 evidence artifact](fixtures/milestone-06-2-depth20.json). The artifact contains all three lines/PVs, actual settings, history commands and elapsed times. No saved record was replaced.
 
@@ -159,6 +159,8 @@ Final required checks:
 | `git diff --check` | Pass | 0 |
 | Explicit depth-20 diagnostic above | 1 passed; 10 complete depth-20 positions | 0 |
 
+One preceding full-suite run exited 101 because the existing `engine::tests::cancellation_timeout_forces_reap_and_next_request_can_recover` fixture failed to execute with `Text file busy (os error 26)`. That test passed in isolation (exit 0), and the final complete suite passed 255/255 non-ignored tests (exit 0). No unrelated engine/fixture code was changed for this transient failure.
+
 The normal suite's four ignored tests are the existing two real-engine smokes, live Chess.com smoke and new deeper diagnostic. Only the new deeper diagnostic was explicitly run for this milestone.
 
 The real database was opened via SQLite `mode=ro` plus `PRAGMA query_only=ON`, never through the application writer. It still contains **151 games and 151 completed runs**. Its 14,245,888-byte main file SHA-256 before and after the engine comparison is unchanged:
@@ -167,7 +169,7 @@ The real database was opened via SQLite `mode=ro` plus `PRAGMA query_only=ON`, n
 734888defe262a30e129db7caa43c9183f20bb59d7e76055da4d4965a42763f0
 ```
 
-The WAL was empty at inspection. No database backup/restore, cleanup, package install or graphics/session change occurred. Initial SSD available space was **7,609,724,928 bytes**; the post-build reading was **7,572,766,720 bytes** (about 7.05 GiB). Diagnostic engine use was bounded to one process, two threads, Hash 64 MiB, CPU only; no pre-existing Stockfish process was running at its start.
+The WAL was empty at inspection. No database backup/restore, cleanup, package install or graphics/session change occurred. Initial SSD available space was **7,609,724,928 bytes**; the post-build reading was **7,544,958,976 bytes** (about 7.03 GiB). Diagnostic engine use was bounded to one process, two threads, Hash 64 MiB, CPU only; no pre-existing Stockfish process was running at its start.
 
 ## Changes and remaining limitations
 
@@ -181,4 +183,4 @@ Production classification, accuracy, engine and UI behavior are unchanged. `anal
 
 The task stops with evidence and regressions, not a speculative production fix. Depth 20 is finite; no broad calibration, official classification comparison or deep reanalysis of complete games was performed. Historical raw UCI transcripts are unavailable. The account's repeated identical openings are not independent calibration examples. No claim is made that these category names are official Chess.com judgments.
 
-No commit or push was performed. Existing work was preserved. Stop at Milestone 06.2; Milestone 07 remains unstarted.
+No commit or push commands were issued by this audit. During the task, the shared repository advanced externally to `e9fab6f` (`Move feedback`), which includes the audit tests and evidence artifacts. That history was left intact; final reporting edits in this document remain uncommitted. Existing work was preserved. Stop at Milestone 06.2; Milestone 07 remains unstarted.

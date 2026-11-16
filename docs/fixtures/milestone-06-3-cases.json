@@ -1,0 +1,322 @@
+[
+  {
+    "id": "e4",
+    "theme": "opening",
+    "pgn": "1. e4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "d4",
+    "theme": "opening",
+    "pgn": "1. d4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "c4",
+    "theme": "opening",
+    "pgn": "1. c4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "Nf3",
+    "theme": "opening",
+    "pgn": "1. Nf3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "b3",
+    "theme": "opening",
+    "pgn": "1. b3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "f4",
+    "theme": "opening",
+    "pgn": "1. f4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "b4",
+    "theme": "opening",
+    "pgn": "1. b4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "a3",
+    "theme": "opening",
+    "pgn": "1. a3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "h4",
+    "theme": "opening",
+    "pgn": "1. h4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "g3",
+    "theme": "opening",
+    "pgn": "1. g3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Opening context only; engine preference does not prove a tactical failure.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "sicilian",
+    "theme": "opening",
+    "pgn": "1. e4 c5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Established defense; validate Black perspective without a book exemption.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "french",
+    "theme": "opening",
+    "pgn": "1. e4 e6 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Established defense; validate Black perspective without a book exemption.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "caro-kann",
+    "theme": "opening",
+    "pgn": "1. e4 c6 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Established defense; validate Black perspective without a book exemption.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "scandinavian",
+    "theme": "opening",
+    "pgn": "1. e4 d5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Established defense; validate Black perspective without a book exemption.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "hanging-queen",
+    "theme": "hanging piece",
+    "pgn": "1. e4 e5 2. Qh5 Nc6 3. Qxe5+ *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Queen can be captured; concrete material loss candidate.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "missed-fork",
+    "theme": "missed fork",
+    "pgn": "[SetUp \"1\"]\n[FEN \"r3k3/8/8/1N6/8/8/P7/6K1 w - - 0 1\"]\n\n1. a3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Nc7+ is a candidate king/rook fork; a3 requires PV evidence before Miss.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "missed-pin",
+    "theme": "missed pin",
+    "pgn": "[SetUp \"1\"]\n[FEN \"r3k3/8/2n5/8/8/8/P7/5BK1 w - - 0 1\"]\n\n1. a3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Bb5 is a candidate absolute pin; missing a pin is not automatically a Miss.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "missed-skewer",
+    "theme": "missed skewer",
+    "pgn": "[SetUp \"1\"]\n[FEN \"8/8/4k3/8/4q3/8/P7/R5K1 w - - 0 1\"]\n\n1. a3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Re1+ is a candidate king/queen skewer; require a legal PV and decisive benefit.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "mate-now",
+    "theme": "forced mate",
+    "pgn": "[SetUp \"1\"]\n[FEN \"7k/8/5KQ1/8/8/8/8/8 w - - 0 1\"]\n\n1. Qg7# *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Authoritative terminal mate after the move, not an ordinary centipawn score.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "missed-mate",
+    "theme": "missed checkmate",
+    "pgn": "[SetUp \"1\"]\n[FEN \"7k/8/5KQ1/8/8/8/8/8 w - - 0 1\"]\n\n1. Qg5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Missed immediate mate candidate; not necessarily loss of the forced win.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "legal-sacrifice",
+    "theme": "sound sacrifice candidate",
+    "pgn": "1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Legal-mate motif; soundness and exceptional label require deeper alternatives, never assumed.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "unsound-offer",
+    "theme": "unsound sacrifice candidate",
+    "pgn": "1. e4 e5 2. Qh5 Nc6 3. Qxe5+ *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Losing queen offer; must never become Brilliant merely for sacrifice.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "only-defense",
+    "theme": "only defensive move",
+    "pgn": "[SetUp \"1\"]\n[FEN \"k7/8/2K5/8/8/8/8/R7 b - - 0 1\"]\n\n1... Kb8 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Only legal reply to rook check; exceptional labels must be suppressed.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "recapture",
+    "theme": "routine recapture",
+    "pgn": "1. e4 d5 2. exd5 Qxd5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Routine recapture; engine-best alone is not Great or Brilliant.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "forced-recapture",
+    "theme": "forced recapture",
+    "pgn": "[SetUp \"1\"]\n[FEN \"5K1k/7R/8/8/8/8/8/8 b - - 0 1\"]\n\n1... Kxh7 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Only legal king recapture; rules property, not a human quality label.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "pawn-structure",
+    "theme": "pawn structure",
+    "pgn": "1. d4 d5 2. c4 e6 3. Nc3 Bb4 4. a3 Bxc3+ 5. bxc3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Doubled pawns trade structural cost for bishop pair; no automatic negative label.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "king-safety",
+    "theme": "king safety",
+    "pgn": "1. f3 e5 2. g4 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "King exposure; tactical evidence should distinguish major failure from quiet loss.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "development",
+    "theme": "development",
+    "pgn": "1. e4 e5 2. Qh5 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Early queen development; do not infer a tactical mistake from a slogan.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "space",
+    "theme": "space concession",
+    "pgn": "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. e3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Quiet pawn choice; compare engine alternatives without arbitrary phase thresholds.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  },
+  {
+    "id": "quiet-defense",
+    "theme": "quiet defense",
+    "pgn": "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Quiet defense in a developed position; a useful phase-stratification fixture.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "endgame-tempo",
+    "theme": "endgame inaccuracy candidate",
+    "pgn": "[SetUp \"1\"]\n[FEN \"8/5k2/5p2/8/4P3/8/4K3/8 w - - 0 1\"]\n\n1. Kd3 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "King tempo in pawn ending; reference classification remains provisional.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": true
+  },
+  {
+    "id": "winning-simplification",
+    "theme": "winning simplification",
+    "pgn": "[SetUp \"1\"]\n[FEN \"3rk3/8/8/8/8/P7/8/3RK3 w - - 0 1\"]\n\n1. Rxd8+ Kxd8 *",
+    "origin": "Mfalmion-authored legal test sequence; not an annotated master-game reference",
+    "interpretation": "Exchange rooks into extra-pawn ending; outcome requires calculation.",
+    "reference_label": null,
+    "provisional": true,
+    "selected": false
+  }
+]

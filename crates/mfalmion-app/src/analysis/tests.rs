@@ -1278,3 +1278,38 @@ fn asynchronous_review_query_returns_requested_game_and_position_without_startin
     }
     assert!(client.done.load(Ordering::Acquire));
 }
+
+#[test]
+fn calibration_proposal_cannot_write_or_replace_existing_completed_review() {
+    let mut db = Database::new();
+    let c = config();
+    let (p, g, _) = complete(&mut db, &short(), &c);
+    let original = db.store.completed_review(p, g, &c).unwrap().unwrap();
+    let writes = db.store.db.total_changes();
+    let mut proposed = c.clone();
+    proposed.algorithm = "mfalmion-expected-score-v2-proposal-1".into();
+    assert!(
+        db.store
+            .start_batch(p, &proposed, Selection::Selected(g))
+            .is_err()
+    );
+    assert_eq!(db.store.db.total_changes(), writes);
+    assert!(
+        db.store
+            .completed_review(p, g, &proposed)
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        db.store.completed_review(p, g, &c).unwrap().unwrap(),
+        original
+    );
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&short()),
+        ply: 1,
+    };
+    let data = db.store.review_data(&key).unwrap();
+    assert_eq!(data.summary.unwrap().config.algorithm, VERSION);
+}
