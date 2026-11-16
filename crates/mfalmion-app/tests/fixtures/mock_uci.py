@@ -8,6 +8,7 @@ mode = pathlib.Path(sys.argv[0]).stem
 log_path = pathlib.Path(str(sys.argv[0]) + '.log')
 multipv = 3
 black = False
+position_ply = 0
 active = False
 
 def emit(text):
@@ -35,6 +36,8 @@ for raw in sys.stdin:
             emit('option name Hash type spin default 16 min 16 max 512')
         emit('option name MultiPV type spin default 1 min 1 max 3')
         emit('option name UCI_AnalyseMode type check default false')
+        if mode == 'batch':
+            emit('option name Clear Hash type button')
         emit('uciok')
     elif line.startswith('setoption name MultiPV value '):
         multipv = int(line.split()[-1])
@@ -43,6 +46,9 @@ for raw in sys.stdin:
             emit('readyok')
     elif line.startswith('position fen '):
         black = ' b ' in line
+        if mode == 'batch':
+            position_ply = len(line.split(' moves ')[1].split()) if ' moves ' in line else 0
+            black = position_ply % 2 == 1
     elif line.startswith('go '):
         if mode == 'search-eof':
             break
@@ -60,7 +66,11 @@ for raw in sys.stdin:
             emit('info depth broken score cp NaN pv bad')
         active = True
         candidates = ['e7e5', 'c7c5', 'e7e6'] if black else ['e2e4', 'd2d4', 'g1f3']
-        for depth in (1, 2):
+        depths = (1, 2)
+        if mode == 'batch':
+            candidates = [['e2e4', 'd2d4', 'g1f3'], ['e7e5', 'c7c5', 'e7e6'], ['g1f3', 'f1c4', 'd2d4']][position_ply]
+            depths = (int(line.split()[2]),)
+        for depth in depths:
             for index in range(multipv):
                 emit(f'info depth {depth} seldepth {depth+2} multipv {index+1} score cp {25-index*10} nodes 123 nps 1000 time 12 pv {candidates[index]}')
         if mode not in ('hold', 'no-bestmove'):

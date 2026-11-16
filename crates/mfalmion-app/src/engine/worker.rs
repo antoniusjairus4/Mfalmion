@@ -45,6 +45,8 @@ impl EngineClient {
         timeouts: Timeouts,
         wake: Option<Arc<dyn Fn() + Send + Sync>>,
     ) -> Result<Self, String> {
+        #[cfg(not(test))]
+        let lease = Lease::acquire()?;
         let mailbox = Arc::new(Mailbox::default());
         let results = Arc::new(Results {
             wake,
@@ -63,6 +65,8 @@ impl EngineClient {
         std::thread::Builder::new()
             .name("mfalmion-uci".into())
             .spawn(move || {
+                #[cfg(not(test))]
+                let _lease = lease;
                 worker.run();
                 drop(worker);
                 let _ = finished.send(());
@@ -224,6 +228,13 @@ impl Worker {
                 .process
                 .send("setoption name UCI_AnalyseMode value true")?;
         }
+        if request.history.is_some() {
+            if !engine.options.contains_key("Clear Hash") {
+                return Err("Batch analysis requires Clear Hash support".into());
+            }
+            engine.process.send("ucinewgame")?;
+            engine.process.send("setoption name Clear Hash")?;
+        }
         if engine.session != Some(request.session) {
             engine.process.send("ucinewgame")?;
         }
@@ -326,8 +337,18 @@ impl Worker {
                         let Some(engine) = &self.engine else {
                             continue;
                         };
-                        let command =
-                            format!("position fen {}", crate::notation::fen(&request.position));
+                        let command = match &request.history {
+                            Some(history) => match history.command(&request.position) {
+                                Ok(command) => command,
+                                Err(e) => {
+                                    self.error(request.id, e);
+                                    continue;
+                                }
+                            },
+                            None => {
+                                format!("position fen {}", crate::notation::fen(&request.position))
+                            }
+                        };
                         let sent = engine.process.send(&command).and_then(|()| {
                             engine.process.send(&format!(
                                 "go depth {} movetime 30000",
@@ -413,5 +434,25 @@ impl Worker {
             let _ = engine.process.send("stop");
         }
         self.engine.take(); // bounded quit, then kill/reap on this worker, never on egui.
+    }
+}
+
+#[cfg(not(test))]
+static OWNED: AtomicBool = AtomicBool::new(false);
+#[cfg(not(test))]
+struct Lease;
+#[cfg(not(test))]
+impl Lease {
+    fn acquire() -> Result<Self, String> {
+        OWNED
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| "Another analysis worker owns Stockfish; stop it first".to_string())?;
+        Ok(Self)
+    }
+}
+#[cfg(not(test))]
+impl Drop for Lease {
+    fn drop(&mut self) {
+        OWNED.store(false, Ordering::Release);
     }
 }

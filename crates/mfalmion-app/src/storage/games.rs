@@ -25,6 +25,7 @@ pub struct GameRow {
     pub time: String,
     pub opening: String,
     pub analyzed: bool,
+    pub batch_status: String,
 }
 pub fn fingerprint(record: &GameRecord) -> String {
     digest(&record.pgn())
@@ -207,7 +208,7 @@ impl Store {
         Ok(inserted)
     }
     pub fn list_games(&self, profile: i64, q: &Query) -> Result<Vec<GameRow>> {
-        let mut s=self.db.prepare("SELECT g.id,white,black,date,result,time_control,opening,EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id) FROM games g WHERE profile_id=?1 AND (?2='' OR instr(lower(white||' '||black||' '||opening),lower(?2))>0) AND (?3='' OR result=?3) AND (?4=0 OR EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id)) ORDER BY CASE WHEN ?5=1 THEN date END ASC, CASE WHEN ?5=0 THEN date END DESC,id DESC LIMIT 50 OFFSET ?6").map_err(|e|e.to_string())?;
+        let mut s=self.db.prepare("SELECT g.id,white,black,date,result,time_control,opening,EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id) ,coalesce((SELECT 'Batch '||b.status FROM batch_runs b WHERE b.game_id=g.id ORDER BY b.id DESC LIMIT 1),'Not analyzed') FROM games g WHERE profile_id=?1 AND (?2='' OR instr(lower(white||' '||black||' '||opening),lower(?2))>0) AND (?3='' OR result=?3) AND (?4=0 OR EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id)) ORDER BY CASE WHEN ?5=1 THEN date END ASC, CASE WHEN ?5=0 THEN date END DESC,id DESC LIMIT 50 OFFSET ?6").map_err(|e|e.to_string())?;
         s.query_map(
             params![
                 profile,
@@ -227,6 +228,7 @@ impl Store {
                     time: r.get(5)?,
                     opening: r.get(6)?,
                     analyzed: r.get(7)?,
+                    batch_status: r.get(8)?,
                 })
             },
         )

@@ -59,6 +59,9 @@ impl GameReview {
             });
         }
     }
+    pub fn set_batch_owned(&mut self, owned: bool) {
+        self.analysis.batch_owned = owned;
+    }
     pub fn shutdown_engine(&mut self) {
         self.analysis.shutdown();
     }

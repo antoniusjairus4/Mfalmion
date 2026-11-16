@@ -146,6 +146,7 @@ impl Store {
         tx.commit().map_err(|e| e.to_string())
     }
     pub fn recover_jobs(&self) -> Result<usize> {
-        self.db.execute("UPDATE jobs SET status='paused',last_error='Interrupted by shutdown; resume explicitly' WHERE status='running'",[]).map_err(|e|e.to_string())
+        self.db.execute("UPDATE batch_runs SET status='paused',last_error='Interrupted; resume explicitly' WHERE status IN('running','pending')",[]).map_err(|e|e.to_string())?;
+        self.db.execute("UPDATE jobs SET status='paused',last_error='Interrupted by shutdown; resume explicitly' WHERE status='running' OR (kind='batch-analysis' AND status='pending')",[]).map_err(|e|e.to_string())
     }
 }

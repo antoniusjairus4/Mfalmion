@@ -1,5 +1,6 @@
 //! Single-owner SQLite persistence. No UI or chess-rule authority lives here.
 pub mod analysis;
+pub mod batch;
 pub mod games;
 pub mod jobs;
 mod schema;
@@ -114,6 +115,7 @@ impl Store {
             tx.commit().map_err(|e| e.to_string())?;
         }
         migrate_sync(&mut db, version)?;
+        migrate_batch(&mut db, version)?;
         let mut store = Self {
             db,
             path: path.to_owned(),
@@ -314,12 +316,21 @@ impl Store {
                     .map_err(|e| e.to_string())?;
             }
         }
+        if version >= 3 {
+            for table in ["batch_jobs", "batch_runs", "batch_positions", "batch_moves"] {
+                probe
+                    .db
+                    .prepare(&format!("SELECT * FROM {table} LIMIT 0"))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
         self.backup(safety)?;
         let backup =
             rusqlite::backup::Backup::new(&probe.db, &mut self.db).map_err(|e| e.to_string())?;
         copy_database(&backup)?;
         drop(backup);
         migrate_sync(&mut self.db, version)?;
+        migrate_batch(&mut self.db, version)?;
         self.recover_sync()?;
         self.recover_jobs()?;
         self.integrity()?;
@@ -369,4 +380,18 @@ fn migrate_sync(db: &mut Connection, version: i64) -> Result<()> {
 #[cfg(test)]
 pub fn schema_for_test() -> &'static str {
     schema::SQL
+}
+
+fn migrate_batch(db: &mut Connection, version: i64) -> Result<()> {
+    if version < 3 {
+        let tx = db.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch(batch::MIGRATION)
+            .map_err(|e| e.to_string())?;
+        tx.execute("INSERT INTO schema_migrations(version) VALUES(3)", [])
+            .map_err(|e| e.to_string())?;
+        tx.pragma_update(None, "user_version", 3)
+            .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }

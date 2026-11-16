@@ -818,7 +818,7 @@ fn sync_schema_migrates_v1_additively_and_restores_old_backup() {
             .db
             .query_row("PRAGMA user_version", [], |r| r.get::<_, u32>(0))
             .unwrap(),
-        2
+        3
     );
     assert_eq!(store.integrity().unwrap(), "ok");
     assert_eq!(std::fs::read(&legacy).unwrap(), original);
@@ -831,7 +831,7 @@ fn sync_schema_migrates_v1_additively_and_restores_old_backup() {
             .query_row("SELECT count(*) FROM schema_migrations", [], |r| r
                 .get::<_, u32>(0))
             .unwrap(),
-        2
+        3
     );
 }
 #[test]

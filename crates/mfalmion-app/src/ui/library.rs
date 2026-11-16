@@ -13,6 +13,7 @@ use std::{
 pub struct Library {
     client: Option<Client>,
     sync: super::sync_panel::SyncPanel,
+    pub batch: super::batch_panel::BatchPanel,
     pub ready: bool,
     busy: bool,
     profiles: Vec<(i64, String, bool)>,
@@ -49,6 +50,17 @@ impl Library {
         }
     }
     pub fn send(&mut self, command: Command) -> bool {
+        if matches!(
+            command,
+            Command::Restore(..)
+                | Command::DeleteProfile(..)
+                | Command::Select(..)
+                | Command::Delete(..)
+        ) && self.batch.busy()
+        {
+            self.notice="Pause account analysis and wait before changing profiles or deleting/restoring data".into();
+            return false;
+        }
         if matches!(command, Command::Restore(..) | Command::DeleteProfile(..)) && self.sync.busy()
         {
             self.notice = "Cancel Sync and wait before restoring or deleting a profile".into();
@@ -106,6 +118,7 @@ impl Library {
                     bytes,
                 } => {
                     self.cached = None;
+                    self.batch.invalidate();
                     self.rows.clear();
                     self.query.offset = 0;
                     self.profiles = profiles;
@@ -165,13 +178,19 @@ impl Library {
     }
     pub fn tick(&mut self, ctx: &egui::Context) {
         if self.ready {
+            self.batch.tick(ctx, self.active);
             let name = self
                 .profiles
                 .iter()
                 .find(|p| p.0 == self.active)
                 .map_or("", |p| p.1.as_str())
                 .to_owned();
-            self.sync.tick(ctx, self.active, &name, self.available());
+            self.sync.tick(
+                ctx,
+                self.active,
+                &name,
+                self.available() && !self.batch.busy(),
+            );
             if self.sync.refresh {
                 self.sync.refresh = false;
                 self.refresh = true;
@@ -186,12 +205,14 @@ impl Library {
     }
     pub fn shutdown(&mut self) {
         self.sync.shutdown();
+        self.batch.shutdown();
         if let Some(c) = &self.client {
             c.shutdown();
         }
     }
     pub fn stopped(&self) -> bool {
         self.sync.stopped()
+            && self.batch.stopped()
             && ((!self.ready && !self.busy)
                 || self
                     .client
@@ -209,7 +230,19 @@ impl Library {
             ui.label("Database unavailable. Existing Game Review remains usable. Check startup path and restart after correcting the error.");
             return;
         }
-        self.sync.show(ui, self.available());
+        self.sync.show(ui, self.available() && !self.batch.busy());
+        let profile_name = self
+            .profiles
+            .iter()
+            .find(|p| p.0 == self.active)
+            .map_or("Profile", |p| p.1.as_str())
+            .to_owned();
+        self.batch.show(
+            ui,
+            self.active,
+            &profile_name,
+            self.available() && !self.sync.busy(),
+        );
         ui.add_enabled_ui(self.available(),|ui|{
             ui.horizontal_wrapped(|ui|{
                 let mut selected=None;
@@ -238,8 +271,9 @@ impl Library {
                 for h in ["White","Black","Date","Result","Time control","Opening","Analysis","Actions"]{ui.strong(h);}ui.end_row();
                 for row in &self.rows{
                     for value in [&row.white,&row.black,&row.date,&row.result,&row.time,&row.opening]{ui.label(value);}
-                    ui.label(if row.analyzed{"Cached positions"}else{"Not analyzed"});
+                    ui.label(format!("{}{}",row.batch_status,if row.analyzed{" · FEN cache"}else{""}));
                     ui.horizontal(|ui|{if ui.button("Open").clicked(){open=Some(row.id);}
+if ui.button("Select for analysis").clicked(){self.batch.selected=Some(row.id);}
 if ui.button("Delete…").clicked(){delete=Some(row.id);}});ui.end_row();
                 }
             });});
@@ -288,6 +322,9 @@ if ui.add_enabled(self.available(),egui::Button::new("Confirm delete profile")).
             egui::Window::new("Replace database from backup?").collapsible(false).show(ui.ctx(),|ui|{ui.label("A new safety backup of the current database is required. Restore replaces all database profiles and records.");if ui.button("Cancel").clicked(){self.confirm_restore=false;}
 if ui.add_enabled(self.available(),egui::Button::new("Confirm restore")).clicked(){self.send(Command::Restore(self.restore_path.clone().into(),self.safety_path.clone().into(),true));self.confirm_restore=false;}});
         }
+    }
+    pub fn request_refresh(&mut self) {
+        self.refresh = true;
     }
     pub fn cache(&mut self, key: Key, snapshot: crate::engine::protocol::Snapshot) -> bool {
         self.send(Command::Cache(key, snapshot))

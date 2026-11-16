@@ -64,6 +64,8 @@ pub struct Request {
     pub session: u64,
     pub position: Chess,
     pub settings: Settings,
+    /// Validated full initial-position and played-move history (batch only).
+    pub history: Option<Box<History>>,
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Status {
@@ -186,4 +188,35 @@ impl Results {
 // Completion channel remains separate so normal GUI close waits asynchronously for child reaping.
 pub(super) fn completion() -> (mpsc::Sender<()>, Receiver<()>) {
     mpsc::channel()
+}
+
+#[derive(Clone)]
+pub struct History {
+    pub initial: Chess,
+    pub moves: Vec<shakmaty::Move>,
+}
+impl History {
+    pub fn command(&self, expected: &Chess) -> Result<String, String> {
+        use shakmaty::{CastlingMode, Position, uci::UciMove};
+        if self.moves.len() > 4096 {
+            return Err("History too long".into());
+        }
+        let mut position = self.initial.clone();
+        let mut command = format!("position fen {}", crate::notation::fen(&position));
+        if !self.moves.is_empty() {
+            command.push_str(" moves");
+        }
+        for m in &self.moves {
+            if !position.is_legal(*m) {
+                return Err("Illegal batch history".into());
+            }
+            command.push(' ');
+            command.push_str(&UciMove::from_move(*m, CastlingMode::Standard).to_string());
+            position.play_unchecked(*m);
+        }
+        if crate::notation::fen(&position) != crate::notation::fen(expected) {
+            return Err("Batch history does not match position".into());
+        }
+        Ok(command)
+    }
 }

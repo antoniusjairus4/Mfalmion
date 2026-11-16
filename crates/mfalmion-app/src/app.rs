@@ -41,6 +41,18 @@ impl eframe::App for MfalmionApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.library.poll();
         self.library.tick(ui.ctx());
+        let batch_owned = self.library.batch.busy();
+        self.game_review.set_batch_owned(batch_owned);
+        if batch_owned {
+            self.game_review.shutdown_engine();
+        }
+        if self.library.batch.requested.is_some() && self.game_review.engine_stopped() {
+            self.library.batch.dispatch();
+        }
+        if self.library.batch.changed {
+            self.library.batch.changed = false;
+            self.library.request_refresh();
+        }
         self.game_review.current_profile = self.library.active;
         if self.library.loaded_preferences {
             self.library.loaded_preferences = false;
@@ -115,7 +127,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 05 · Chess.com sync");
+                ui.label("Milestone 06 · Resumable account analysis");
             });
         });
         let previous = self.page;
@@ -174,6 +186,16 @@ impl eframe::App for MfalmionApp {
                             }
                         });
                         self.game_review.show(ui);
+                        let identity = self
+                            .game_review
+                            .stored_identity
+                            .as_ref()
+                            .filter(|(p, _, _)| *p == self.library.active)
+                            .filter(|_| self.game_review.is_stored_mainline())
+                            .cloned();
+                        self.library
+                            .batch
+                            .review(ui, identity, self.game_review.cursor());
                         self.stored = self
                             .game_review
                             .stored_identity

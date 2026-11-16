@@ -49,3 +49,5 @@ impl Page {
 
 mod engine_panel;
 mod sync_panel;
+
+pub mod batch_panel;

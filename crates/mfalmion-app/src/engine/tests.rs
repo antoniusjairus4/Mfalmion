@@ -22,6 +22,7 @@ fn request(id: u64, path: String) -> Request {
         id,
         session: 0,
         position: Chess::default(),
+        history: None,
         settings: Settings {
             path,
             depth: 6,

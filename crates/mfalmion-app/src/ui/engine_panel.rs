@@ -12,6 +12,7 @@ use std::sync::Arc;
 #[derive(Default)]
 pub struct EnginePanel {
     client: Option<EngineClient>,
+    pub batch_owned: bool,
     pub settings: Settings,
     active_settings: Settings,
     enabled: bool,
@@ -59,7 +60,10 @@ impl EnginePanel {
             }
             return;
         }
-        if self.client.is_none() {
+        if self.batch_owned {
+            return;
+        }
+        if self.client.as_ref().is_none_or(EngineClient::is_shutdown) {
             let ctx = ctx.clone();
             match EngineClient::new(Arc::new(move || ctx.request_repaint())) {
                 Ok(client) => self.client = Some(client),
@@ -129,6 +133,7 @@ impl EnginePanel {
                     id: self.generation,
                     session,
                     position: position.clone(),
+                    history: None,
                     settings: self.active_settings.clone(),
                 });
             }
@@ -164,11 +169,14 @@ impl EnginePanel {
         ));
         ui.horizontal_wrapped(|ui| {
             if ui
-                .button(if self.enabled {
-                    "Stop Analysis"
-                } else {
-                    "Start Analysis"
-                })
+                .add_enabled(
+                    !self.batch_owned,
+                    egui::Button::new(if self.enabled {
+                        "Stop Analysis"
+                    } else {
+                        "Start Analysis"
+                    }),
+                )
                 .clicked()
             {
                 if self.enabled {
