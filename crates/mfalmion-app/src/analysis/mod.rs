@@ -1,6 +1,8 @@
 //! History-aware account analysis, independent of egui and interactive settings.
 pub mod classify;
 pub mod metrics;
+#[cfg(test)]
+mod opening_audit_tests;
 pub mod phase;
 pub mod runner;
 #[cfg(test)]

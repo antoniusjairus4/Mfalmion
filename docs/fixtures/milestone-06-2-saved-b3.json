@@ -1,0 +1,188 @@
+{
+  "game": 4,
+  "run": 4,
+  "white": "Antonius-Jairus-R",
+  "black": "umbragetaken",
+  "date": "2026.11.08",
+  "move": {
+    "depth": 12,
+    "ply": 1,
+    "white": true,
+    "san": "b3",
+    "phase": "Opening",
+    "classification": "Inaccuracy",
+    "confidence": "configured depth",
+    "tags": [],
+    "loss": 0.07600323070020171,
+    "centipawn_loss": 61,
+    "best": "e2e4",
+    "pv": [
+      "e2e4",
+      "e7e5",
+      "g1f3",
+      "g8f6",
+      "f3e5",
+      "f6e4",
+      "d1f3",
+      "e4g5",
+      "f3e3",
+      "g5e6",
+      "d2d4",
+      "d7d5",
+      "b1c3"
+    ]
+  },
+  "before": {
+    "depth": 12,
+    "lines": [
+      {
+        "rank": 1,
+        "value": {
+          "Cp": 45
+        },
+        "bound": "exact",
+        "pv": [
+          "e2e4",
+          "e7e5",
+          "g1f3",
+          "g8f6",
+          "f3e5",
+          "f6e4",
+          "d1f3",
+          "e4g5",
+          "f3e3",
+          "g5e6",
+          "d2d4",
+          "d7d5",
+          "b1c3"
+        ]
+      },
+      {
+        "rank": 2,
+        "value": {
+          "Cp": 24
+        },
+        "bound": "exact",
+        "pv": [
+          "d2d4",
+          "d7d5",
+          "c2c4",
+          "d5c4",
+          "g1f3",
+          "g8f6",
+          "b1c3",
+          "a7a6",
+          "e2e4",
+          "b7b5",
+          "e4e5"
+        ]
+      },
+      {
+        "rank": 3,
+        "value": {
+          "Cp": 23
+        },
+        "bound": "exact",
+        "pv": [
+          "g1f3",
+          "d7d5",
+          "d2d4",
+          "c8f5",
+          "c2c4",
+          "e7e6",
+          "c1g5",
+          "f8e7",
+          "g5e7",
+          "g8e7"
+        ]
+      }
+    ],
+    "terminal": false
+  },
+  "after": {
+    "depth": 12,
+    "lines": [
+      {
+        "rank": 1,
+        "value": {
+          "Cp": -16
+        },
+        "bound": "exact",
+        "pv": [
+          "e7e5",
+          "c1b2",
+          "b8c6",
+          "c2c4",
+          "g8f6",
+          "e2e3",
+          "d7d5",
+          "c4d5",
+          "f6d5",
+          "g1f3",
+          "c8f5",
+          "a2a3",
+          "e5e4",
+          "f3d4",
+          "c6d4",
+          "b2d4",
+          "d8d7"
+        ]
+      },
+      {
+        "rank": 2,
+        "value": {
+          "Cp": -8
+        },
+        "bound": "exact",
+        "pv": [
+          "g8f6",
+          "c1b2",
+          "e7e6",
+          "e2e3",
+          "d7d5",
+          "f1e2",
+          "f8d6",
+          "g1f3",
+          "e8g8",
+          "d2d4"
+        ]
+      },
+      {
+        "rank": 3,
+        "value": {
+          "Cp": -3
+        },
+        "bound": "exact",
+        "pv": [
+          "e7e6",
+          "c1b2",
+          "g8f6",
+          "e2e3",
+          "d7d5",
+          "g1f3",
+          "c7c5",
+          "f1e2",
+          "f8d6",
+          "e1g1",
+          "b8c6"
+        ]
+      }
+    ],
+    "terminal": false
+  },
+  "calculated": 0.07600323070020171,
+  "index_records": [
+    [
+      0,
+      null,
+      null,
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    ],
+    [
+      1,
+      "b3",
+      "b2b3",
+      "rnbqkbnr/pppppppp/8/8/8/1P6/P1PPPPPP/RNBQKBNR b KQkq - 0 1"
+    ]
+  ]
+}

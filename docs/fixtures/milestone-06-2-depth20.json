@@ -1,0 +1,1124 @@
+[
+  {
+    "elapsed_ms": 3724,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "e7e6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "b8c6",
+            "b1c3",
+            "g8f6",
+            "c1f4",
+            "d7d6",
+            "d4b5",
+            "e6e5",
+            "f4g5",
+            "a7a6",
+            "g5f6",
+            "g7f6",
+            "b5a3",
+            "c8e6"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 37
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "c2c4",
+            "e7e6",
+            "b1c3",
+            "f8b4",
+            "e2e3",
+            "c7c5",
+            "f1d3",
+            "d7d5",
+            "c4d5",
+            "e6d5",
+            "g1e2",
+            "c5d4",
+            "e2d4",
+            "e8g8"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 22
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g1f3",
+            "d7d5",
+            "d2d4",
+            "g8f6",
+            "c2c4",
+            "e7e6",
+            "b1c3",
+            "c7c5",
+            "c4d5",
+            "c5d4",
+            "f3d4",
+            "f6d5",
+            "c1d2",
+            "f8e7",
+            "e2e4",
+            "d5b4",
+            "f1b5",
+            "c8d7"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 19
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "position": "start",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 3384,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e5",
+            "c1b2",
+            "b8c6",
+            "c2c4",
+            "g8e7",
+            "g2g3",
+            "d7d5",
+            "c4d5",
+            "e7d5",
+            "f1g2",
+            "f8c5",
+            "d1c1",
+            "c5b6",
+            "b1c3",
+            "c8e6",
+            "g1f3",
+            "d5c3",
+            "c1c3"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": -21
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "c7c5",
+            "c1b2",
+            "g8f6",
+            "e2e3",
+            "b8c6",
+            "g1f3",
+            "g7g6",
+            "b2f6",
+            "e7f6",
+            "c2c4",
+            "f8g7",
+            "b1c3",
+            "f6f5",
+            "f1e2",
+            "d7d6",
+            "e1g1"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": -2
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "c1b2",
+            "c7c5",
+            "e2e3",
+            "b8c6",
+            "g1f3",
+            "g7g6",
+            "b2f6",
+            "e7f6",
+            "c2c4",
+            "d7d5",
+            "c4d5",
+            "d8d5",
+            "b1c3",
+            "d5d6",
+            "a1c1",
+            "c8f5",
+            "c3a4",
+            "b7b6",
+            "f1b5",
+            "f5d3",
+            "b5d3",
+            "d6d3"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": -2
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves b2b3",
+    "position": "b3",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 3721,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e5",
+            "g1f3",
+            "b8c6",
+            "f1c4",
+            "g8f6",
+            "d2d3",
+            "f8e7",
+            "e1g1",
+            "e8g8",
+            "b1c3",
+            "d7d6",
+            "a2a4",
+            "c6b4",
+            "c3e2",
+            "a7a5",
+            "e2g3"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 27
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e6",
+            "d2d4",
+            "d7d5",
+            "b1c3",
+            "g8f6",
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "a2a3",
+            "c7c6",
+            "d1d2",
+            "b7b5",
+            "g1f3",
+            "f6d8",
+            "f1d3",
+            "b8d7",
+            "e1g1",
+            "b5b4",
+            "c3a4",
+            "b4a3"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 35
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "c7c5",
+            "g1f3",
+            "d7d6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "a7a6",
+            "c1e3",
+            "e7e5",
+            "d4b3",
+            "f6g4",
+            "d1f3",
+            "g4e3",
+            "f3e3",
+            "b8d7",
+            "h2h4",
+            "f8e7",
+            "c3d5",
+            "d7f6"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 39
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4",
+    "position": "e4",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 3335,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "c2c4",
+            "e7e6",
+            "g1f3",
+            "d7d5",
+            "b1c3",
+            "c7c5",
+            "c4d5",
+            "f6d5",
+            "e2e4",
+            "d5c3",
+            "b2c3",
+            "c5d4",
+            "c3d4",
+            "f8b4",
+            "c1d2",
+            "b4d2",
+            "d1d2",
+            "e8g8",
+            "f1e2",
+            "b7b6",
+            "a1c1",
+            "c8a6",
+            "e2a6",
+            "b8a6",
+            "e1g1",
+            "h7h6",
+            "f1d1"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 22
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "c2c4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "c4d5",
+            "e6d5",
+            "c1g5",
+            "c7c6",
+            "e2e3",
+            "h7h6",
+            "g5h4",
+            "c8f5",
+            "d1f3",
+            "f5e6",
+            "h4f6",
+            "d8f6",
+            "f3f6",
+            "g7f6",
+            "a2a3",
+            "f8d6",
+            "g2g3",
+            "b8d7",
+            "g1f3"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 25
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e6",
+            "e2e4",
+            "d7d5",
+            "b1c3",
+            "g8f6",
+            "c1g5",
+            "d5e4",
+            "c3e4",
+            "f8e7",
+            "g5f6",
+            "g7f6",
+            "g1f3",
+            "f6f5",
+            "e4c3",
+            "c7c6",
+            "f1e2",
+            "h8g8",
+            "d1d2",
+            "b8d7",
+            "e1g1"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 32
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves d2d4",
+    "position": "d4",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 4057,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "d2d4",
+            "g7g6",
+            "c2c4",
+            "f8g7",
+            "b1c3",
+            "d7d5",
+            "d1b3",
+            "d5c4",
+            "b3c4",
+            "e8g8",
+            "e2e4",
+            "a7a6",
+            "f1e2",
+            "b7b5",
+            "c4b3",
+            "c7c5",
+            "d4c5",
+            "b8d7",
+            "e1g1",
+            "d7c5",
+            "b3b4",
+            "d8c7",
+            "c1e3"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 26
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "c7c5",
+            "e2e4",
+            "d7d6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "g7g6",
+            "f2f4",
+            "b8c6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "d6e5",
+            "d1d8",
+            "e8d8",
+            "f4e5",
+            "f6g4",
+            "c1f4",
+            "f8g7"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 27
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "d2d4",
+            "c7c6",
+            "c2c4",
+            "g8f6",
+            "e2e3",
+            "c8f5",
+            "f3h4",
+            "f5b1",
+            "a1b1",
+            "e7e6",
+            "h4f3",
+            "f8b4",
+            "c1d2",
+            "b4d2",
+            "f3d2",
+            "b8d7",
+            "f1d3",
+            "e8g8"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 30
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g1f3",
+    "position": "Nf3",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 4129,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e5",
+            "g2g3",
+            "c7c6",
+            "d2d4",
+            "e5d4",
+            "d1d4",
+            "g8f6",
+            "f1g2",
+            "d7d5",
+            "g1f3",
+            "f8e7",
+            "e1g1",
+            "c6c5",
+            "d4d2",
+            "e8g8",
+            "c4d5",
+            "d8d5",
+            "b1c3",
+            "d5d2",
+            "f3d2",
+            "b8c6",
+            "f1d1"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 27
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e6",
+            "g2g3",
+            "d7d5",
+            "g1f3",
+            "d5d4",
+            "f1g2",
+            "b8c6",
+            "d2d3",
+            "g8f6",
+            "e1g1",
+            "f8c5",
+            "e2e3",
+            "e8g8",
+            "e3d4",
+            "c6d4",
+            "b1c3",
+            "d4f3",
+            "d1f3"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 31
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "c7c5",
+            "g1f3",
+            "g8f6",
+            "g2g3",
+            "g7g6",
+            "f1g2",
+            "f8g7",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "b8c6",
+            "b1c3",
+            "c6d4",
+            "d1d4",
+            "d7d6",
+            "c1e3"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 32
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves c2c4",
+    "position": "c4",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 2496,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e5",
+            "a2a3",
+            "d7d5",
+            "c1b2",
+            "b8d7",
+            "e2e3",
+            "a7a5",
+            "c2c4",
+            "a5b4",
+            "a3b4",
+            "a8a1",
+            "b2a1",
+            "f8b4",
+            "g1f3",
+            "b4d6",
+            "c4d5",
+            "g8f6",
+            "b1c3",
+            "e8g8",
+            "f1e2",
+            "d7c5",
+            "c3b5"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": -36
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "c1b2",
+            "g8f6",
+            "a2a3",
+            "a7a5",
+            "b4b5",
+            "e7e6",
+            "e2e3",
+            "b8d7",
+            "c2c4",
+            "f8d6",
+            "d2d4",
+            "c7c5",
+            "b5c6",
+            "b7c6",
+            "c4c5",
+            "d6c7",
+            "g1f3",
+            "f6e4",
+            "f1e2",
+            "a8b8",
+            "d1c2"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": -18
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "c1b2",
+            "d7d5",
+            "a2a3",
+            "b8d7",
+            "g1f3",
+            "a7a5",
+            "b4b5",
+            "e7e6",
+            "e2e3",
+            "f8d6",
+            "c2c4",
+            "e8g8",
+            "d2d4",
+            "c7c5",
+            "b5c6",
+            "b7c6",
+            "c4c5",
+            "d6c7",
+            "f1e2",
+            "a8b8",
+            "d1c2"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": -17
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves b2b4",
+    "position": "b4",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 3304,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "g1f3",
+            "g7g6",
+            "e2e3",
+            "f8g7",
+            "c2c4",
+            "g8f6",
+            "c4d5",
+            "f6d5",
+            "d2d4",
+            "c8g4",
+            "f1e2",
+            "c7c5",
+            "d4c5",
+            "e8g8",
+            "h2h3"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": -24
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "g1f3",
+            "d7d5",
+            "e2e3",
+            "c7c5",
+            "f1b5",
+            "c8d7",
+            "d1e2",
+            "g7g6",
+            "b5d7",
+            "d8d7",
+            "d2d3",
+            "b8c6",
+            "e3e4",
+            "d5e4",
+            "d3e4",
+            "a8d8",
+            "e4e5",
+            "f6d5",
+            "e1g1",
+            "c6d4",
+            "f3d4",
+            "c5d4",
+            "f1f3",
+            "d7c6",
+            "c2c4",
+            "d4c3",
+            "b1c3"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": -22
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e6",
+            "e2e4",
+            "d7d5",
+            "b1c3",
+            "d5d4",
+            "c3e2",
+            "c7c5",
+            "d2d3",
+            "f8e7",
+            "g2g3",
+            "g8h6",
+            "g1f3",
+            "e8g8",
+            "f1g2",
+            "b8c6",
+            "e1g1",
+            "b7b6",
+            "c2c3",
+            "d4c3",
+            "b2c3",
+            "c8b7",
+            "h2h3"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": -11
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves f2f4",
+    "position": "f4",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 1716,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e6",
+            "g1f3",
+            "d7d5",
+            "d2d4",
+            "g8f6",
+            "c2c4",
+            "f8e7",
+            "b1d2",
+            "e8g8",
+            "f1e2",
+            "b7b6",
+            "b2b3",
+            "c8b7",
+            "c1b2",
+            "b8d7",
+            "a1c1",
+            "c7c5",
+            "e1g1",
+            "c5d4",
+            "f3d4",
+            "a8c8",
+            "c4d5",
+            "f6d5",
+            "c1c8"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 8
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "g1f3",
+            "d7d5",
+            "d2d4",
+            "e7e6",
+            "c2c4",
+            "f8e7",
+            "b1d2",
+            "b8d7",
+            "b2b3",
+            "c7c5",
+            "d4c5",
+            "d7c5",
+            "f1e2"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 10
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "d2d4",
+            "e7e6",
+            "g1f3",
+            "g8f6",
+            "c2c4",
+            "f8e7",
+            "b2b3",
+            "e8g8",
+            "b1d2",
+            "b7b6",
+            "f1d3",
+            "b8d7",
+            "e1g1",
+            "c8b7",
+            "d1e2",
+            "d5c4",
+            "d2c4",
+            "c7c5",
+            "f1d1",
+            "c5d4",
+            "f3d4"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 13
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e3",
+    "position": "e3",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  },
+  {
+    "elapsed_ms": 3222,
+    "error": null,
+    "evaluation": {
+      "depth": 20,
+      "lines": [
+        {
+          "bound": "exact",
+          "pv": [
+            "e7e5",
+            "c2c4",
+            "g8f6",
+            "f1g2",
+            "c7c6",
+            "g1f3",
+            "e5e4",
+            "f3d4",
+            "d7d5",
+            "d2d3",
+            "f8b4",
+            "c1d2",
+            "b4c5",
+            "d4b3",
+            "c5b6",
+            "e1g1",
+            "d5c4",
+            "d3c4",
+            "d8e7",
+            "b1c3"
+          ],
+          "rank": 1,
+          "value": {
+            "Cp": 19
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "d7d5",
+            "g1f3",
+            "g7g6",
+            "d2d4",
+            "f8g7",
+            "f1g2",
+            "c7c6",
+            "e1g1",
+            "g8f6",
+            "c2c4",
+            "e8g8",
+            "b2b3",
+            "c8f5",
+            "c1b2",
+            "d8b6",
+            "b1c3",
+            "d5c4"
+          ],
+          "rank": 2,
+          "value": {
+            "Cp": 19
+          }
+        },
+        {
+          "bound": "exact",
+          "pv": [
+            "g8f6",
+            "g1f3",
+            "g7g6",
+            "d2d4",
+            "f8g7",
+            "c2c4",
+            "c7c6",
+            "f1g2",
+            "d7d5",
+            "e1g1",
+            "e8g8",
+            "b2b3",
+            "f8e8",
+            "c1b2",
+            "c8f5",
+            "b1c3",
+            "f6e4",
+            "a1c1",
+            "e4c3",
+            "b2c3",
+            "a7a5",
+            "h2h3"
+          ],
+          "rank": 3,
+          "value": {
+            "Cp": 25
+          }
+        }
+      ],
+      "terminal": false
+    },
+    "history": "position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves g2g3",
+    "position": "g3",
+    "requested_depth": 20,
+    "settings": {
+      "algorithm": "mfalmion-expected-score-v1",
+      "engine": {
+        "depth": 20,
+        "hash_mib": 64,
+        "multipv": 3,
+        "path": "/usr/games/stockfish",
+        "threads": 2
+      },
+      "identity": "Stockfish 17.1"
+    }
+  }
+]
