@@ -54,3 +54,31 @@ impl Store {
         Ok(())
     }
 }
+impl Store {
+    pub fn sync_preferences(&self) -> Result<(crate::sync::Preferences, Option<String>)> {
+        let value: Option<String> = self
+            .db
+            .query_row(
+                "SELECT value FROM settings WHERE key='chesscom_preferences'",
+                [],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        match value {
+            None => Ok((Default::default(), None)),
+            Some(value) => match serde_json::from_str::<crate::sync::Preferences>(&value) {
+                Ok(p) if p.validate().is_ok() => Ok((p, None)),
+                _ => Ok((
+                    Default::default(),
+                    Some("Invalid saved sync preferences; defaults loaded".into()),
+                )),
+            },
+        }
+    }
+    pub fn save_sync_preferences(&self, p: &crate::sync::Preferences) -> Result<()> {
+        p.validate()?;
+        self.db.execute("INSERT INTO settings(key,value) VALUES('chesscom_preferences',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=unixepoch()",[serde_json::to_string(p).map_err(|e|e.to_string())?]).map_err(|e|e.to_string())?;
+        Ok(())
+    }
+}

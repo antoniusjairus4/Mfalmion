@@ -201,51 +201,10 @@ impl Store {
         // Validate public record invariants before serializing, not merely trust callers.
         let parsed = notation::parse_pgn(&canonical)?;
         let record = &parsed[0];
-        let fingerprint = digest(&canonical);
         let tx = self.db.transaction().map_err(|e| e.to_string())?;
-        let exists: bool = tx
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM games WHERE profile_id=?1 AND fingerprint=?2)",
-                params![profile, fingerprint],
-                |r| r.get(0),
-            )
-            .map_err(|e| e.to_string())?;
-        if exists {
-            return Ok(false);
-        }
-        let mut document = None;
-        if let Some(original) = original {
-            let hash = digest(original);
-            tx.execute("INSERT INTO documents(fingerprint,pgn) VALUES(?1,?2) ON CONFLICT(fingerprint) DO NOTHING",params![hash,original]).map_err(|e|e.to_string())?;
-            document = Some(
-                tx.query_row(
-                    "SELECT id FROM documents WHERE fingerprint=?1",
-                    [hash],
-                    |r| r.get::<_, i64>(0),
-                )
-                .map_err(|e| e.to_string())?,
-            );
-        }
-        let tag = |key: &str| record.headers.get(key).map_or("", String::as_str);
-        tx.execute("INSERT INTO games(profile_id,external_id,document_id,pgn,white,black,date,time_control,time_class,result,eco,opening,fingerprint) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",params![profile,tag("Link"),document,canonical,tag("White"),tag("Black"),tag("Date"),tag("TimeControl"),tag("TimeClass"),record.result,tag("ECO"),tag("Opening"),fingerprint]).map_err(|e|e.to_string())?;
-        let id = tx.last_insert_rowid();
-        {
-            let mut statement = tx
-                .prepare("INSERT INTO game_moves(game_id,ply,san,uci,fen) VALUES(?1,?2,?3,?4,?5)")
-                .map_err(|e| e.to_string())?;
-            for (ply, position) in record.positions.iter().enumerate() {
-                let san = ply.checked_sub(1).and_then(|i| record.moves.get(i));
-                let uci = ply
-                    .checked_sub(1)
-                    .and_then(|i| record.played_moves.get(i))
-                    .map(|m| UciMove::from_move(*m, CastlingMode::Standard).to_string());
-                statement
-                    .execute(params![id, ply as i64, san, uci, notation::fen(position)])
-                    .map_err(|e| e.to_string())?;
-            }
-        }
+        let (inserted, _) = insert_validated(&tx, profile, record, original, None)?;
         tx.commit().map_err(|e| e.to_string())?;
-        Ok(true)
+        Ok(inserted)
     }
     pub fn list_games(&self, profile: i64, q: &Query) -> Result<Vec<GameRow>> {
         let mut s=self.db.prepare("SELECT g.id,white,black,date,result,time_control,opening,EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id) FROM games g WHERE profile_id=?1 AND (?2='' OR instr(lower(white||' '||black||' '||opening),lower(?2))>0) AND (?3='' OR result=?3) AND (?4=0 OR EXISTS(SELECT 1 FROM analysis a WHERE a.game_id=g.id)) ORDER BY CASE WHEN ?5=1 THEN date END ASC, CASE WHEN ?5=0 THEN date END DESC,id DESC LIMIT 50 OFFSET ?6").map_err(|e|e.to_string())?;
@@ -318,4 +277,61 @@ impl Store {
         tx.execute("DELETE FROM documents WHERE id NOT IN(SELECT document_id FROM games WHERE document_id IS NOT NULL)",[]).map_err(|e|e.to_string())?;
         tx.commit().map_err(|e| e.to_string())
     }
+}
+
+pub(crate) fn insert_validated(
+    tx: &rusqlite::Transaction<'_>,
+    profile: i64,
+    record: &GameRecord,
+    original: Option<&str>,
+    external_identity: Option<&str>,
+) -> Result<(bool, i64)> {
+    let canonical = record.pgn();
+    let fingerprint = external_identity.map_or_else(
+        || digest(&canonical),
+        |id| digest(&format!("{canonical}\nexternal:{id}")),
+    );
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM games WHERE profile_id=?1 AND fingerprint=?2",
+            params![profile, fingerprint],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    if let Some(id) = existing {
+        return Ok((false, id));
+    }
+    let mut document = None;
+    if let Some(original) = original {
+        let hash = digest(original);
+        tx.execute("INSERT INTO documents(fingerprint,pgn) VALUES(?1,?2) ON CONFLICT(fingerprint) DO NOTHING",params![hash,original]).map_err(|e|e.to_string())?;
+        document = Some(
+            tx.query_row(
+                "SELECT id FROM documents WHERE fingerprint=?1",
+                [hash],
+                |r| r.get::<_, i64>(0),
+            )
+            .map_err(|e| e.to_string())?,
+        );
+    }
+    let tag = |key: &str| record.headers.get(key).map_or("", String::as_str);
+    tx.execute("INSERT INTO games(profile_id,external_id,document_id,pgn,white,black,date,time_control,time_class,result,eco,opening,fingerprint) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",params![profile,tag("Link"),document,canonical,tag("White"),tag("Black"),tag("Date"),tag("TimeControl"),tag("TimeClass"),record.result,tag("ECO"),tag("Opening"),fingerprint]).map_err(|e|e.to_string())?;
+    let id = tx.last_insert_rowid();
+    {
+        let mut statement = tx
+            .prepare("INSERT INTO game_moves(game_id,ply,san,uci,fen) VALUES(?1,?2,?3,?4,?5)")
+            .map_err(|e| e.to_string())?;
+        for (ply, position) in record.positions.iter().enumerate() {
+            let san = ply.checked_sub(1).and_then(|i| record.moves.get(i));
+            let uci = ply
+                .checked_sub(1)
+                .and_then(|i| record.played_moves.get(i))
+                .map(|m| UciMove::from_move(*m, CastlingMode::Standard).to_string());
+            statement
+                .execute(params![id, ply as i64, san, uci, notation::fen(position)])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok((true, id))
 }

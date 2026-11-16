@@ -40,6 +40,7 @@ impl MfalmionApp {
 impl eframe::App for MfalmionApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.library.poll();
+        self.library.tick(ui.ctx());
         self.game_review.current_profile = self.library.active;
         if self.library.loaded_preferences {
             self.library.loaded_preferences = false;
@@ -114,7 +115,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 04 · Local game library");
+                ui.label("Milestone 05 · Chess.com sync");
             });
         });
         let previous = self.page;

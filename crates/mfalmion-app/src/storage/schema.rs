@@ -1,4 +1,4 @@
-pub const VERSION: i64 = 1;
+pub const VERSION: i64 = 2;
 pub const SQL: &str = r#"
 CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at INTEGER NOT NULL DEFAULT(unixepoch()));
 CREATE TABLE profiles(id INTEGER PRIMARY KEY, username TEXT NOT NULL COLLATE NOCASE UNIQUE, display_name TEXT, active INTEGER NOT NULL DEFAULT 0 CHECK(active IN(0,1)), created_at INTEGER NOT NULL DEFAULT(unixepoch()), updated_at INTEGER NOT NULL DEFAULT(unixepoch()), last_sync INTEGER, sync_status TEXT NOT NULL DEFAULT 'never');

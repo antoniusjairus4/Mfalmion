@@ -12,6 +12,7 @@ use std::{
 #[derive(Default)]
 pub struct Library {
     client: Option<Client>,
+    sync: super::sync_panel::SyncPanel,
     pub ready: bool,
     busy: bool,
     profiles: Vec<(i64, String, bool)>,
@@ -48,6 +49,14 @@ impl Library {
         }
     }
     pub fn send(&mut self, command: Command) -> bool {
+        if matches!(command, Command::Restore(..) | Command::DeleteProfile(..)) && self.sync.busy()
+        {
+            self.notice = "Cancel Sync and wait before restoring or deleting a profile".into();
+            return false;
+        }
+        if matches!(command, Command::Select(..)) {
+            self.sync.cancel();
+        }
         if self.busy {
             return false;
         }
@@ -92,6 +101,7 @@ impl Library {
                     profiles,
                     active,
                     preferences,
+                    sync_preferences,
                     warning,
                     bytes,
                 } => {
@@ -101,6 +111,8 @@ impl Library {
                     self.profiles = profiles;
                     self.active = active;
                     self.preferences = preferences;
+                    self.sync.preferences = sync_preferences;
+                    self.sync.reload();
                     self.loaded_preferences = true;
                     self.bytes = bytes;
                     self.ready = true;
@@ -151,17 +163,40 @@ impl Library {
             self.send(Command::Refresh(self.active, self.query.clone()));
         }
     }
-    pub fn shutdown(&self) {
+    pub fn tick(&mut self, ctx: &egui::Context) {
+        if self.ready {
+            let name = self
+                .profiles
+                .iter()
+                .find(|p| p.0 == self.active)
+                .map_or("", |p| p.1.as_str())
+                .to_owned();
+            self.sync.tick(ctx, self.active, &name, self.available());
+            if self.sync.refresh {
+                self.sync.refresh = false;
+                self.refresh = true;
+            }
+            if self.sync.save_preferences && self.available() {
+                let p = self.sync.preferences.clone();
+                if self.send(Command::SyncPreferences(p)) {
+                    self.sync.save_preferences = false;
+                }
+            }
+        }
+    }
+    pub fn shutdown(&mut self) {
+        self.sync.shutdown();
         if let Some(c) = &self.client {
             c.shutdown();
         }
     }
     pub fn stopped(&self) -> bool {
-        (!self.ready && !self.busy)
-            || self
-                .client
-                .as_ref()
-                .is_none_or(|c| c.done.load(Ordering::Acquire))
+        self.sync.stopped()
+            && ((!self.ready && !self.busy)
+                || self
+                    .client
+                    .as_ref()
+                    .is_none_or(|c| c.done.load(Ordering::Acquire)))
     }
     pub fn show(&mut self, ui: &mut egui::Ui) {
         ui.heading("Game Library");
@@ -174,6 +209,7 @@ impl Library {
             ui.label("Database unavailable. Existing Game Review remains usable. Check startup path and restart after correcting the error.");
             return;
         }
+        self.sync.show(ui, self.available());
         ui.add_enabled_ui(self.available(),|ui|{
             ui.horizontal_wrapped(|ui|{
                 let mut selected=None;
@@ -222,8 +258,6 @@ if delete.is_some(){self.confirm_game=delete;}
                 ui.label("New safety-backup path (required before restore)");ui.text_edit_singleline(&mut self.safety_path);
                 if ui.button("Restore…").clicked(){self.confirm_restore=true;}
                 ui.label("Close other Mfalmion instances before restore. The current review remains in memory; reopen the desired stored game afterward.");
-                ui.add(egui::DragValue::new(&mut self.preferences.sync_interval_hours).range(1..=8760).prefix("Future sync interval hours: "));
-                ui.label("This preference schedules no network activity.");
                 if ui.button("Save preferences").clicked(){self.send(Command::Preferences(self.preferences.clone()));}
             });
         });

@@ -4,6 +4,7 @@ pub mod games;
 pub mod jobs;
 mod schema;
 pub mod settings;
+pub mod sync;
 #[cfg(test)]
 mod tests;
 pub mod worker;
@@ -104,17 +105,15 @@ impl Store {
         if version == 0 {
             let tx = db.transaction().map_err(|e| e.to_string())?;
             tx.execute_batch(schema::SQL).map_err(|e| e.to_string())?;
-            tx.execute(
-                "INSERT INTO schema_migrations(version) VALUES(?1)",
-                [schema::VERSION],
-            )
-            .map_err(|e| e.to_string())?;
+            tx.execute("INSERT INTO schema_migrations(version) VALUES(?1)", [1_i64])
+                .map_err(|e| e.to_string())?;
             tx.pragma_update(None, "application_id", 0x4d46414c_i64)
                 .map_err(|e| e.to_string())?;
-            tx.pragma_update(None, "user_version", schema::VERSION)
+            tx.pragma_update(None, "user_version", 1_i64)
                 .map_err(|e| e.to_string())?;
             tx.commit().map_err(|e| e.to_string())?;
         }
+        migrate_sync(&mut db, version)?;
         let mut store = Self {
             db,
             path: path.to_owned(),
@@ -275,7 +274,7 @@ impl Store {
             .db
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .map_err(|e| e.to_string())?;
-        if version != schema::VERSION {
+        if !(1..=schema::VERSION).contains(&version) {
             return Err("Restore requires the current Mfalmion schema".into());
         }
         let application: i64 = probe
@@ -301,11 +300,27 @@ impl Store {
                 .prepare(&format!("SELECT * FROM {table} LIMIT 0"))
                 .map_err(|e| e.to_string())?;
         }
+        if version >= 2 {
+            for table in [
+                "remote_games",
+                "archive_sync",
+                "sync_http",
+                "sync_runs",
+                "sync_failures",
+            ] {
+                probe
+                    .db
+                    .prepare(&format!("SELECT * FROM {table} LIMIT 0"))
+                    .map_err(|e| e.to_string())?;
+            }
+        }
         self.backup(safety)?;
         let backup =
             rusqlite::backup::Backup::new(&probe.db, &mut self.db).map_err(|e| e.to_string())?;
         copy_database(&backup)?;
         drop(backup);
+        migrate_sync(&mut self.db, version)?;
+        self.recover_sync()?;
         self.recover_jobs()?;
         self.integrity()?;
         Ok(())
@@ -335,4 +350,23 @@ fn sidecar(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.as_os_str().to_os_string();
     name.push(suffix);
     name.into()
+}
+
+fn migrate_sync(db: &mut Connection, version: i64) -> Result<()> {
+    if version < 2 {
+        let tx = db.transaction().map_err(|e| e.to_string())?;
+        tx.execute_batch(sync::MIGRATION)
+            .map_err(|e| e.to_string())?;
+        tx.execute("INSERT INTO schema_migrations(version) VALUES(?1)", [2])
+            .map_err(|e| e.to_string())?;
+        tx.pragma_update(None, "user_version", 2)
+            .map_err(|e| e.to_string())?;
+        tx.commit().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+pub fn schema_for_test() -> &'static str {
+    schema::SQL
 }

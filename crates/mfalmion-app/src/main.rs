@@ -6,6 +6,7 @@ mod graphics;
 mod logging;
 mod notation;
 mod storage;
+mod sync;
 mod theme;
 mod ui;
 

@@ -20,6 +20,7 @@ pub enum Command {
     Open(i64, i64),
     Delete(i64, i64, bool),
     Preferences(Preferences),
+    SyncPreferences(crate::sync::Preferences),
     Integrity,
     Backup(PathBuf),
     Restore(PathBuf, PathBuf, bool),
@@ -31,6 +32,7 @@ pub enum Reply {
         profiles: Vec<(i64, String, bool)>,
         active: i64,
         preferences: Preferences,
+        sync_preferences: crate::sync::Preferences,
         warning: Option<String>,
         bytes: u64,
     },
@@ -72,7 +74,10 @@ impl Client {
                 match result {
                     Err(e) => send(Reply::Error(e)),
                     Ok(mut store) => {
-                        let initial = store.recover_jobs().and_then(|_| state(&store));
+                        let initial = store
+                            .recover_jobs()
+                            .and_then(|_| store.recover_sync())
+                            .and_then(|_| state(&store));
                         match initial {
                             Ok(r) => send(r),
                             Err(e) => send(Reply::Error(e)),
@@ -138,11 +143,16 @@ fn return_send(
     }
 }
 fn state(store: &Store) -> Result<Reply> {
-    let (preferences, warning) = store.preferences()?;
+    let (preferences, mut warning) = store.preferences()?;
+    let (sync_preferences, sync_warning) = store.sync_preferences()?;
+    if warning.is_none() {
+        warning = sync_warning;
+    }
     Ok(Reply::State {
         profiles: store.profiles()?,
         active: store.active_profile()?,
         preferences,
+        sync_preferences,
         warning,
         bytes: store.size()?,
     })
@@ -180,6 +190,10 @@ fn execute(store: &mut Store, command: Command) -> Result<Reply> {
         Command::Preferences(p) => {
             store.save_preferences(&p)?;
             Reply::Done("Settings saved".into())
+        }
+        Command::SyncPreferences(p) => {
+            store.save_sync_preferences(&p)?;
+            Reply::Done("Sync preferences saved".into())
         }
         Command::Integrity => Reply::Done(format!(
             "Database integrity: {}; size {} bytes",

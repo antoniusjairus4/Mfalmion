@@ -76,13 +76,13 @@ fn initialization_and_migration() {
     assert_eq!(
         s.db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        1
+        schema::VERSION
     );
     assert_eq!(
         s.db.query_row("SELECT count(*) FROM schema_migrations", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        1
+        schema::VERSION
     );
     assert!(s.size().unwrap() > 0);
 }
@@ -104,7 +104,7 @@ fn reopening_preserves_state() {
         s.db.query_row("SELECT count(*) FROM schema_migrations", [], |r| r
             .get::<_, i64>(0))
             .unwrap(),
-        1
+        schema::VERSION
     );
 }
 #[test]
