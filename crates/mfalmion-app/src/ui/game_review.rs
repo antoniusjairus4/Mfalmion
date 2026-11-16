@@ -7,6 +7,7 @@ use eframe::egui::{self, RichText};
 enum SessionAction {
     NewGame,
     Install(Box<crate::notation::GameRecord>, bool),
+    Stored(i64, i64, Box<crate::notation::GameRecord>),
     Select(usize),
     Import(Vec<crate::notation::GameRecord>),
     Return,
@@ -16,6 +17,11 @@ enum SessionAction {
 #[derive(Default)]
 pub struct GameReview {
     game: Game,
+    pub persistence_import: Option<(i64, Vec<crate::notation::GameRecord>)>,
+    pub current_profile: i64,
+    pub stored_identity: Option<(i64, i64, String)>,
+    file_profile: Option<i64>,
+    import_profile: Option<i64>,
     analysis: super::engine_panel::EnginePanel,
     analysis_session: u64,
     textures: board::PieceTextures,
@@ -58,6 +64,33 @@ impl GameReview {
     }
     pub fn engine_stopped(&self) -> bool {
         self.analysis.is_shutdown()
+    }
+    pub fn open_stored(&mut self, profile: i64, id: i64, record: crate::notation::GameRecord) {
+        self.request_action(SessionAction::Stored(profile, id, Box::new(record)));
+    }
+    pub fn is_stored_mainline(&self) -> bool {
+        self.protected && self.stored_identity.is_some()
+    }
+    pub fn record(&self) -> &crate::notation::GameRecord {
+        &self.record
+    }
+    pub fn cursor(&self) -> usize {
+        self.cursor
+    }
+    pub fn engine_settings(&self) -> &crate::engine::Settings {
+        &self.analysis.settings
+    }
+    pub fn set_engine_settings(&mut self, settings: crate::engine::Settings) {
+        self.analysis.settings = settings;
+    }
+    pub fn completed_analysis(
+        &mut self,
+    ) -> Option<(
+        String,
+        crate::engine::Settings,
+        crate::engine::protocol::Snapshot,
+    )> {
+        self.analysis.completed_analysis()
     }
     fn contents(&mut self, ui: &mut egui::Ui) {
         if self.pending_action.is_none()
@@ -320,6 +353,7 @@ impl GameReview {
         }
     }
     fn install(&mut self, record: crate::notation::GameRecord, protected: bool) {
+        self.stored_identity = None;
         self.analysis_session = self.analysis_session.wrapping_add(1);
         self.analysis.invalidate();
         self.local_work = false;
@@ -354,8 +388,10 @@ impl GameReview {
     fn finish_file(&mut self, reply: Result<crate::file_dialog::FileReply, String>) {
         match reply {
             Ok(crate::file_dialog::FileReply::Imported(records)) => {
+                self.import_profile = self.file_profile.take();
                 self.request_action(SessionAction::Import(records))
             }
+            Ok(crate::file_dialog::FileReply::Text(_)) => {}
             Ok(crate::file_dialog::FileReply::Saved) => self.notice = Some("PGN snapshot saved."),
             Ok(crate::file_dialog::FileReply::Cancelled) => {}
             Err(error) => self.error = Some(error),
@@ -367,6 +403,10 @@ impl GameReview {
             return;
         };
         self.install(first.clone(), true);
+        self.persistence_import = Some((
+            self.import_profile.take().unwrap_or(self.current_profile),
+            records.clone(),
+        ));
         self.imported = records;
         self.selected_game = Some(0);
     }
@@ -478,6 +518,7 @@ impl GameReview {
                 )
                 .clicked()
             {
+                self.file_profile = Some(self.current_profile);
                 self.file_task = Some(crate::file_dialog::start(None, ui.ctx().clone()));
             }
             if ui
@@ -512,6 +553,7 @@ impl GameReview {
                 )
                 .clicked()
             {
+                self.file_profile = Some(self.current_profile);
                 self.file_task = Some(crate::file_dialog::parse_text(
                     self.text_input.clone(),
                     ui.ctx().clone(),
@@ -571,7 +613,15 @@ impl GameReview {
     }
     fn apply_action(&mut self, action: SessionAction) {
         match action {
-            SessionAction::NewGame => self.new_game(),
+            SessionAction::NewGame => {
+                self.stored_identity = None;
+                self.new_game();
+            }
+            SessionAction::Stored(profile, id, record) => {
+                let hash = crate::storage::games::fingerprint(&record);
+                self.install(*record, true);
+                self.stored_identity = Some((profile, id, hash));
+            }
             SessionAction::Install(record, protected) => {
                 self.install(*record, protected);
                 self.local_work = !protected;
@@ -1085,5 +1135,35 @@ mod tests {
             review.game.position().piece_at(sq(0, 7)).unwrap().kind,
             Kind::Knight
         );
+    }
+    #[test]
+    fn stored_game_replacement_preserves_identity_until_confirmed() {
+        let mut review = GameReview {
+            local_work: true,
+            ..Default::default()
+        };
+        let record = crate::notation::parse_pgn("1.e4 *").unwrap().remove(0);
+        review.open_stored(7, 42, record.clone());
+        assert!(review.pending_action.is_some());
+        assert!(review.stored_identity.is_none());
+        review.pending_action = None; // Keep current session.
+        assert!(review.record.moves.is_empty());
+        review.open_stored(7, 42, record);
+        let action = review.pending_action.take().unwrap();
+        review.apply_action(action);
+        assert!(review.is_stored_mainline());
+        assert_eq!(review.stored_identity.as_ref().unwrap().1, 42);
+    }
+    #[test]
+    fn import_retains_profile_that_started_the_file_operation() {
+        let mut review = GameReview {
+            current_profile: 8,
+            file_profile: Some(7),
+            ..Default::default()
+        };
+        review.finish_file(Ok(crate::file_dialog::FileReply::Imported(
+            crate::notation::parse_pgn("1.d4 *").unwrap(),
+        )));
+        assert_eq!(review.persistence_import.as_ref().unwrap().0, 7);
     }
 }

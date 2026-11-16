@@ -1,4 +1,5 @@
 pub mod game_review;
+pub mod library;
 pub mod pages;
 pub mod sidebar;
 

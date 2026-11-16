@@ -13,7 +13,7 @@ use std::sync::{
 };
 pub use worker::EngineClient;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Settings {
     pub path: String,
     pub depth: u16,

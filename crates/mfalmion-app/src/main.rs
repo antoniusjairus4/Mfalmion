@@ -5,6 +5,7 @@ mod file_dialog;
 mod graphics;
 mod logging;
 mod notation;
+mod storage;
 mod theme;
 mod ui;
 

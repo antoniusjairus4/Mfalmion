@@ -12,6 +12,7 @@ use std::{
     },
 };
 pub enum FileReply {
+    Text(String),
     Imported(Vec<GameRecord>),
     Saved,
     Cancelled,
@@ -229,6 +230,29 @@ fn save_text(path: &std::path::Path, text: &str, overwrite: bool) -> std::io::Re
     }
     result
 }
+/// Library import keeps raw text so persistence can report per-game partial success.
+pub fn library_import(ctx: eframe::egui::Context) -> FileTask {
+    worker(ctx, move |control| {
+        let Some(path) = choose(false, control)? else {
+            return Ok(FileReply::Cancelled);
+        };
+        let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+        if !metadata.is_file() || metadata.len() > notation::MAX_PGN_BYTES as u64 {
+            return Err("Select a regular UTF-8 PGN file of at most 16 MiB".into());
+        }
+        let mut text = String::new();
+        fs::File::open(path)
+            .map_err(|e| e.to_string())?
+            .take(notation::MAX_PGN_BYTES as u64 + 1)
+            .read_to_string(&mut text)
+            .map_err(|e| e.to_string())?;
+        if text.len() > notation::MAX_PGN_BYTES {
+            return Err("PGN exceeds 16 MiB".into());
+        }
+        Ok(FileReply::Text(text))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -20,11 +20,13 @@ pub struct EnginePanel {
     pub status: Status,
     snapshot: Option<Snapshot>,
     best_move: Option<Option<String>>,
+    completion: Option<(String, Settings, Snapshot)>,
     name: Option<String>,
     error: Option<String>,
 }
 impl EnginePanel {
     fn next_generation(&mut self) {
+        self.completion = None;
         self.snapshot = None;
         self.best_move = None;
         self.error = None;
@@ -91,7 +93,15 @@ impl EnginePanel {
             Event::Status(_, status) => self.status = status,
             Event::Identity(_, name) => self.name = Some(name),
             Event::Snapshot(_, snapshot) if self.enabled => self.snapshot = Some(snapshot),
-            Event::BestMove(_, mv) if self.enabled => self.best_move = Some(mv),
+            Event::BestMove(_, mv) if self.enabled => {
+                self.best_move = Some(mv);
+                if let (Some(name), Some(snapshot)) = (&self.name, &self.snapshot)
+                    && snapshot.depth == self.active_settings.depth
+                {
+                    self.completion =
+                        Some((name.clone(), self.active_settings.clone(), snapshot.clone()));
+                }
+            }
             Event::Error(_, error) => {
                 self.status = Status::Error;
                 self.error = Some(error);
@@ -101,6 +111,9 @@ impl EnginePanel {
             }
             _ => {}
         }
+    }
+    pub fn completed_analysis(&mut self) -> Option<(String, Settings, Snapshot)> {
+        self.completion.take()
     }
     pub fn sync(&mut self, position: &Chess, session: u64) {
         let key = (crate::notation::fen(position), session);
@@ -348,5 +361,35 @@ mod tests {
         assert!(!panel.enabled);
         assert_eq!(panel.status, Status::Error);
         assert!(panel.error.is_some());
+    }
+    #[test]
+    fn only_live_requested_depth_completion_is_persistable() {
+        let mut panel = EnginePanel {
+            enabled: true,
+            generation: 3,
+            name: Some("Stockfish 17.1".into()),
+            active_settings: Settings {
+                depth: 4,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        panel.accept(Event::Snapshot(3, snapshot()));
+        assert!(panel.completed_analysis().is_none());
+        panel.accept(Event::BestMove(3, Some("e4".into())));
+        assert!(panel.completed_analysis().is_some());
+        panel.accept(Event::BestMove(3, Some("e4".into())));
+        panel.invalidate();
+        assert!(panel.completed_analysis().is_none());
+        panel.accept(Event::BestMove(3, Some("e4".into())));
+        assert!(panel.completed_analysis().is_none());
+        panel.generation = 5;
+        panel.accept(Event::Snapshot(5, snapshot()));
+        panel.active_settings.depth = 6;
+        panel.accept(Event::BestMove(5, Some("e4".into())));
+        assert!(panel.completed_analysis().is_none());
+        panel.stop();
+        panel.accept(Event::BestMove(panel.generation, Some("e4".into())));
+        assert!(panel.completed_analysis().is_none());
     }
 }

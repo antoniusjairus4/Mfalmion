@@ -2,11 +2,11 @@
 
 A local-first chess analysis desktop application for Kali Linux Rolling, built with Rust, egui/eframe, and wgpu. It opens a dedicated Linux desktop window.
 
-## Current milestone: 03 — Native Stockfish Position Analysis
+## Current milestone: 04 — SQLite Library and Persistence
 
-Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Click moves now glide for 200 ms; legal drags settle briefly and invalid drops snap back. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. The other five sections retain their placeholders.
+Game Review contains a native chessboard with legal click-to-move and drag-and-drop, legal-destination markers, turn/check/mate/stalemate status, castling, en passant, promotion choices, board flipping, and New Game, and full-state Undo Last Move. Click moves now glide for 200 ms; legal drags settle briefly and invalid drops snap back. Both sides are controlled locally; White moves first. Threefold repetition and the 50-move rule are claimable; fivefold repetition and 75 moves are automatic draws. Checked kings are highlighted. Game Library now provides local SQLite imports, search, filtering, pagination and opening games in this same review screen. Other unrelated sections retain their placeholders.
 
-Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Live position analysis uses the locally installed Stockfish 17.1 through a native asynchronous UCI adapter. AI coaching, Chess.com sync, databases, batch review calculations and Play vs Stockfish are **not implemented**. No statistics or engine evaluations are fabricated.
+Rules and move validation use [shakmaty 0.30.1](https://docs.rs/shakmaty/0.30.1/shakmaty/) (GPL-3.0-or-later). Live position analysis uses the locally installed Stockfish 17.1 through a native asynchronous UCI adapter. AI coaching, Chess.com sync, batch review calculations and Play vs Stockfish are **not implemented**. No statistics or engine evaluations are fabricated.
 
 ## Development on Kali Linux
 
@@ -37,15 +37,16 @@ Builds use two jobs, no debug symbols or incremental cache, and store artifacts 
 - `board/`: authoritative shakmaty game/session state, renderer snapshot adapter, coordinate/orientation mapping, input events, and native egui painting.
 - `ui/`: navigation, Game Review and native analysis panel, and truthful placeholder screens.
 - `engine/`: UCI protocol/data, bounded process transport and asynchronous lifecycle worker.
+- `storage/`: versioned bundled SQLite, profiles/games, conservative analysis cache, persistent job lifecycle, settings and a bounded worker.
 - `AGENTS.md`: permanent engineering rules.
 - `docs/`: milestone verification notes.
 - `assets/pieces/cburnett/`: twelve offline SVG pieces by Colin M. L. Burnett, from the pinned Lichess source under GPLv2-or-later. Attribution, source SVGs and full license are bundled. The old font subset remains a historical unused asset and is no longer embedded or loaded.
 
 ## Planned milestones
 
-02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser and is accepted for this milestone. Milestone 03 adds native Stockfish live position analysis; manual acceptance is pending. Later approved milestones may add engine play, a SQLite library, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
+02A: Native board UI. 02B: Legal moves implemented. 02B.1: Presentation-only move animations and drag refinement implemented; manual acceptance pending. 02C adds PGN import/export, FEN sessions, indexed replay, move history, explicit local variations and an on-board graphical promotion chooser and is accepted for this milestone. Milestone 03 adds native Stockfish live position analysis and was accepted as the prerequisite for 04. Milestone 04 adds the local SQLite library, persistence and job infrastructure; its manual acceptance is pending. Later approved milestones may add engine play, reviews and statistics, optional Chess.com synchronization, and local AI explanations via llama.cpp. Stockfish evaluations will remain separate from AI explanations. Detailed sequencing beyond Milestone 02 is not yet committed.
 
-No external AI assets or CUDA installations are changed. Stockfish starts only when Start Analysis is selected. The shell starts no AI server or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The 02C checkpoint was subsequently committed and pushed under explicit user authorization. Milestone 02C and its audit are accepted for this request. Milestone 03 changes remain local and uncommitted for acceptance.
+No external AI assets or CUDA installations are changed. Stockfish starts only when Start Analysis is selected. The shell starts no AI server or network integration. Development proceeds one milestone per explicit approval. Milestone 02B and its visual refinement were committed/pushed under the subsequent user authorization. The 02C checkpoint was subsequently committed and pushed under explicit user authorization. Milestone 02C and its audit are accepted for this request. Milestone 04 changes remain local and uncommitted for acceptance.
 
 ## Linux graphics compatibility
 
@@ -109,8 +110,22 @@ The [Milestone 02C final audit](docs/milestone-02c-audit.md) fixes result/adjudi
 
 In Game Review, select **Start Analysis**. Analysis follows the authoritative position after moves, replay navigation, imported FEN/PGN, game switching and local variations. Stop disables automatic following and cancels the search; a healthy engine stays connected for reuse. Best moves are displayed only and are never played automatically.
 
-Defaults: `/usr/games/stockfish`, depth 16, MultiPV 3, two search threads and 64 MiB hash. Settings are kept in memory; use **Apply settings** during analysis. Validation limits depth to 1–32, MultiPV to 1–3, threads to 1–8 (also bounded by available parallelism), and hash to 16–512 MiB. Searches stop at the requested depth or 30 seconds, with an independent watchdog.
+Defaults: `/usr/games/stockfish`, depth 16, MultiPV 3, two search threads and 64 MiB hash. Validated settings persist in SQLite; use **Apply settings** during analysis. Database errors appear in the library/review status; retry saving in Game Library maintenance if a write fails. Validation limits depth to 1–32, MultiPV to 1–3, threads to 1–8 (also bounded by available parallelism), and hash to 16–512 MiB. Searches stop at the requested depth or 30 seconds, with an independent watchdog.
 
 Scores are White-positive; mate and bound scores are labeled separately. Up to three PVs are shown as validated SAN from the current position. Only complete groups from a single depth/request are displayed. The horizontal White/Black bar is a nonlinear evaluation scale, **not a win probability**, and keeps its labeled orientation when the board is flipped.
 
-No Stockfish binary is bundled, downloaded or compiled. There are no new Rust dependencies. The installed executable is launched directly without a shell. See [Milestone 03](docs/milestone-03.md) for cancellation/shutdown design, bounded mock/real tests and manual acceptance. Native GUI testing was not performed for this milestone.
+No Stockfish binary is bundled, downloaded or compiled. Milestone 03 itself added no Rust dependencies. The installed executable is launched directly without a shell. See [Milestone 03](docs/milestone-03.md) for cancellation/shutdown design, bounded mock/real tests and manual acceptance. Native GUI testing was not performed for this milestone.
+
+## Local game library and storage
+
+Open **Game Library** to import a selected UTF-8 PGN file or paste PGN. Each valid game is committed independently, duplicates are skipped, and imported/skipped/failed counts are reported. Comments and variations are retained in the original source; canonical validated mainlines drive replay. A malformed game's continuation is never repaired. Search players/opening, filter result or cached-analysis presence, choose date ordering, and browse 50 games per page. Open uses the existing Game Review; deleting games/profiles and restoring a database require explicit confirmation. Create/select profiles locally; the initial profile is `Antonius-Jairus-R`. No username causes a download.
+
+Default database: `~/.local/share/mfalmion/mfalmion.sqlite3` (or `$XDG_DATA_HOME/mfalmion/mfalmion.sqlite3`). Override at startup with `MFALMION_DATABASE=/absolute/path/library.sqlite3` or `MFALMION_DATA_DIR=/existing/data/directory`. Explicit override parent directories must already exist. Relative overrides resolve from the launch directory. Database paths inside Git repositories are rejected. For an existing configured database, set `MFALMION_REQUIRE_DATABASE=1` to fail safely if it is missing. Startup configuration remains authoritative; the settings record stores its reference rather than moving the database.
+
+Successful Game Review previews are also queued for persistence in their originating profile; **Save current game to library** explicitly saves a local game/variation without replacing another game. Review previews retain their strict whole-document validation and replacement guard; use Game Library for per-game partial imports and error counts. Open the saved row from Game Library to attach persistent analysis to it. Original imported mainlines are preserved.
+
+Completed live analyses of opened library games are cached only at the requested depth, with complete MultiPV groups and exact settings/engine/history identity. **Read saved position analysis** displays a compatible saved result without starting Stockfish; the identity field defaults to `Stockfish 17.1`. Saved results are labeled separately from live analysis. Start Analysis always requests fresh live analysis. Custom FEN roots and local unsaved branches are excluded from reusable caching; FEN-only evaluations are never shared between distinct games/history prefixes.
+
+Game Library → **Database maintenance** provides integrity/size inspection, new-file backups, confirmed restore with a mandatory new safety backup, and the future sync interval preference. The interval schedules nothing. Jobs support persistent progress/pause/resume/recovery through a tested storage API; there is no batch scheduler or automatic account analysis. All database work uses one bounded background worker. No user's actual database was created by automated tests.
+
+See [Milestone 04](docs/milestone-04.md) for schema, transaction/cache/job guarantees, backup/restore and exFAT considerations, test results and the manual acceptance checklist. No portable launcher, Chess.com synchronization, classifications/accuracy, Qwen or cloud integration is implemented. Stop at Milestone 04 pending acceptance.
