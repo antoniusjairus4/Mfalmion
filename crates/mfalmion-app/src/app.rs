@@ -16,6 +16,7 @@ pub struct MfalmionApp {
     )>,
     saved_settings: Option<crate::engine::Settings>,
     cache_engine: String,
+    review_tools_open: bool,
     game_review: ui::game_review::GameReview,
 }
 
@@ -127,7 +128,7 @@ impl eframe::App for MfalmionApp {
                 ui.separator();
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
                 ui.separator();
-                ui.label("Milestone 06 · Resumable account analysis");
+                ui.label("Milestone 06.1 · Game Review");
             });
         });
         let previous = self.page;
@@ -142,77 +143,74 @@ impl eframe::App for MfalmionApp {
                     .inner_margin(28.0),
             )
             .show(ui, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    if self.closing {
-                        ui.label("Stopping engine and closing…");
-                    } else if self.page == Page::GameReview {
-                        ui.label(&self.library.notice);
-                        ui.horizontal_wrapped(|ui| {
-                            if ui
-                                .add_enabled(
-                                    self.library.available(),
-                                    egui::Button::new("Save current game to library"),
-                                )
-                                .clicked()
-                            {
-                                self.library
-                                    .send(crate::storage::worker::Command::ImportRecords(
-                                        self.library.active,
-                                        vec![self.game_review.record().clone()],
-                                    ));
-                            }
-                            ui.label("Cache engine identity:");
-                            ui.text_edit_singleline(&mut self.cache_engine);
-                            let stored = self
-                                .stored
-                                .as_ref()
-                                .filter(|_| self.game_review.is_stored_mainline());
-                            if ui
-                                .add_enabled(
-                                    self.library.available() && stored.is_some(),
-                                    egui::Button::new("Read saved position analysis"),
-                                )
-                                .clicked()
-                                && let Some((_, id, _)) = stored
-                                && let Ok(key) = crate::storage::analysis::Key::new(
-                                    *id,
-                                    self.game_review.record(),
-                                    self.game_review.cursor(),
-                                    &self.cache_engine,
-                                    self.game_review.engine_settings(),
-                                )
-                            {
-                                self.library.lookup(key);
-                            }
-                        });
-                        self.game_review.show(ui);
-                        let identity = self
-                            .game_review
-                            .stored_identity
-                            .as_ref()
-                            .filter(|(p, _, _)| *p == self.library.active)
-                            .filter(|_| self.game_review.is_stored_mainline())
-                            .cloned();
-                        self.library
-                            .batch
-                            .review(ui, identity, self.game_review.cursor());
-                        self.stored = self
-                            .game_review
-                            .stored_identity
-                            .as_ref()
-                            .filter(|(profile, _, _)| *profile == self.library.active)
-                            .cloned();
-                        if let Some((cached_key, lines)) = &self.library.cached {
-                            let compatible = self.game_review.is_stored_mainline()
-                                && self
+                if self.closing {
+                    ui.label("Stopping engine and closing…");
+                } else if self.page == Page::GameReview {
+                    if ui
+                        .small_button("Library storage / position cache…")
+                        .clicked()
+                    {
+                        self.review_tools_open = true;
+                    }
+                    let mut open = self.review_tools_open;
+                    egui::Window::new("Library storage and saved position cache")
+                        .open(&mut open)
+                        .default_width(520.0)
+                        .max_height(360.0)
+                        .vscroll(true)
+                        .show(ui.ctx(), |ui| {
+                            ui.label(&self.library.notice);
+                            ui.horizontal_wrapped(|ui| {
+                                if ui
+                                    .add_enabled(
+                                        self.library.available(),
+                                        egui::Button::new("Save current game to library"),
+                                    )
+                                    .clicked()
+                                {
+                                    self.library.send(
+                                        crate::storage::worker::Command::ImportRecords(
+                                            self.library.active,
+                                            vec![self.game_review.record().clone()],
+                                        ),
+                                    );
+                                }
+                                ui.label("Cache engine identity:");
+                                ui.text_edit_singleline(&mut self.cache_engine);
+                                let stored = self
                                     .stored
                                     .as_ref()
-                                    .is_some_and(|(_, id, _)| *id == cached_key.game)
-                                && self.game_review.cursor() == cached_key.ply
-                                && self.cache_engine == cached_key.engine
-                                && cached_key.matches_settings(self.game_review.engine_settings());
-                            if compatible {
-                                egui::CollapsingHeader::new(
+                                    .filter(|_| self.game_review.is_stored_mainline());
+                                if ui
+                                    .add_enabled(
+                                        self.library.available() && stored.is_some(),
+                                        egui::Button::new("Read saved position analysis"),
+                                    )
+                                    .clicked()
+                                    && let Some((_, id, _)) = stored
+                                    && let Ok(key) = crate::storage::analysis::Key::new(
+                                        *id,
+                                        self.game_review.record(),
+                                        self.game_review.cursor(),
+                                        &self.cache_engine,
+                                        self.game_review.engine_settings(),
+                                    )
+                                {
+                                    self.library.lookup(key);
+                                }
+                            });
+                            if let Some((cached_key, lines)) = &self.library.cached {
+                                let compatible = self.game_review.is_stored_mainline()
+                                    && self
+                                        .stored
+                                        .as_ref()
+                                        .is_some_and(|(_, id, _)| *id == cached_key.game)
+                                    && self.game_review.cursor() == cached_key.ply
+                                    && self.cache_engine == cached_key.engine
+                                    && cached_key
+                                        .matches_settings(self.game_review.engine_settings());
+                                if compatible {
+                                    egui::CollapsingHeader::new(
                                     "Saved completed analysis (FEN-only engine context; not live)",
                                 )
                                 .show(ui, |ui| {
@@ -255,29 +253,51 @@ impl eframe::App for MfalmionApp {
                                         ));
                                     }
                                 });
+                                }
                             }
-                        }
-
-                        if let Some((name, settings, snapshot)) =
-                            self.game_review.completed_analysis()
-                            && let Some((_, id, _)) = &self.stored
-                            && self.game_review.is_stored_mainline()
-                            && let Ok(key) = crate::storage::analysis::Key::new(
-                                *id,
-                                self.game_review.record(),
-                                self.game_review.cursor(),
-                                &name,
-                                &settings,
-                            )
-                        {
-                            self.pending_cache = Some((key, snapshot));
-                        }
-                    } else if self.page == Page::GameLibrary {
-                        self.library.show(ui);
-                    } else {
-                        ui::pages::show(ui, self.page);
+                        });
+                    self.review_tools_open = open;
+                    let identity = self
+                        .game_review
+                        .stored_identity
+                        .as_ref()
+                        .filter(|(p, _, _)| *p == self.library.active)
+                        .filter(|_| self.game_review.is_stored_mainline())
+                        .cloned();
+                    self.library
+                        .batch
+                        .load_review(identity, self.game_review.cursor());
+                    self.game_review
+                        .set_saved_review(self.library.batch.review_data());
+                    self.game_review.show(ui);
+                    self.stored = self
+                        .game_review
+                        .stored_identity
+                        .as_ref()
+                        .filter(|(p, _, _)| *p == self.library.active)
+                        .cloned();
+                    if let Some((name, settings, snapshot)) = self.game_review.completed_analysis()
+                        && let Some((_, id, _)) = &self.stored
+                        && self.game_review.is_stored_mainline()
+                        && let Ok(key) = crate::storage::analysis::Key::new(
+                            *id,
+                            self.game_review.record(),
+                            self.game_review.cursor(),
+                            &name,
+                            &settings,
+                        )
+                    {
+                        self.pending_cache = Some((key, snapshot));
                     }
-                });
+                } else {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if self.page == Page::GameLibrary {
+                            self.library.show(ui);
+                        } else {
+                            ui::pages::show(ui, self.page);
+                        }
+                    });
+                }
             });
     }
 }

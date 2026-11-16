@@ -3,6 +3,7 @@ pub mod analysis;
 pub mod batch;
 pub mod games;
 pub mod jobs;
+pub mod review;
 mod schema;
 pub mod settings;
 pub mod sync;

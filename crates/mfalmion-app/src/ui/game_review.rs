@@ -17,6 +17,9 @@ enum SessionAction {
 #[derive(Default)]
 pub struct GameReview {
     game: Game,
+    saved: crate::storage::review::ReviewData,
+    tools_open: bool,
+    live_open: bool,
     pub persistence_import: Option<(i64, Vec<crate::notation::GameRecord>)>,
     pub current_profile: i64,
     pub stored_identity: Option<(i64, i64, String)>,
@@ -59,6 +62,19 @@ impl GameReview {
             });
         }
     }
+    pub fn set_saved_review(&mut self, data: crate::storage::review::ReviewData) {
+        self.saved = data;
+    }
+    fn saved_summary(&self) -> Option<&crate::analysis::Summary> {
+        (self.is_stored_mainline()
+            && self
+                .stored_identity
+                .as_ref()
+                .is_some_and(|(p, _, _)| *p == self.current_profile)
+            && self.saved.matches(self.stored_identity.as_ref()))
+        .then_some(self.saved.summary.as_deref())
+        .flatten()
+    }
     pub fn set_batch_owned(&mut self, owned: bool) {
         self.analysis.batch_owned = owned;
     }
@@ -96,6 +112,9 @@ impl GameReview {
         self.analysis.completed_analysis()
     }
     fn contents(&mut self, ui: &mut egui::Ui) {
+        // Dense review controls use local spacing; the surrounding dark application theme remains unchanged.
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 4.0);
+        ui.spacing_mut().button_padding = egui::vec2(7.0, 4.0);
         if self.pending_action.is_none()
             && !ui.ctx().egui_wants_keyboard_input()
             && self.promotion.is_none()
@@ -117,35 +136,368 @@ impl GameReview {
                 self.navigate(target, ui.input(|i| i.time));
             }
         }
-        ui.label(
-            RichText::new("MILESTONE 03 · LIVE POSITION ANALYSIS")
-                .small()
-                .color(theme::CYAN),
-        );
-        ui.heading(RichText::new("Game Review").size(32.0));
-        ui.label(
-            RichText::new("Move pieces by clicking a piece then a destination, or drag and drop.")
-                .color(theme::MUTED),
-        );
-        ui.add_space(16.0);
-        let available = ui.available_width();
-        let max_side = (ui.ctx().content_rect().height() - 240.0).clamp(240.0, 640.0);
-        if available >= 820.0 {
-            ui.horizontal_top(|ui| {
-                let width = (available - 280.0).min(max_side + 44.0);
-                ui.allocate_ui(egui::vec2(width, width), |ui| self.board(ui, max_side));
-                ui.vertical(|ui| {
-                    ui.set_width(240.0);
-                    self.details(ui);
-                });
+        ui.heading(RichText::new("Game Review").size(28.0));
+        self.toolbar(ui);
+        let layout =
+            super::review_layout::Layout::calculate(ui.available_width(), ui.available_height());
+        let gap = (ui.available_width() - layout.left - layout.right).max(0.0);
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            ui.allocate_ui_with_layout(
+                egui::vec2(layout.left, layout.height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_max_width(layout.left);
+                    self.board(ui, layout.board);
+                    ui.label(RichText::new(self.status_text()).color(theme::MINT));
+                    if let Some(notice) = self.notice {
+                        ui.label(notice);
+                    }
+                    if self.promotion.is_some() {
+                        ui.label("Choose a piece on the board; Escape cancels.");
+                    }
+                },
+            );
+            ui.allocate_ui_with_layout(
+                egui::vec2(layout.right, layout.height),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_min_width(0.0);
+                    ui.set_max_width(layout.right);
+                    self.review_sidebar(ui, layout.compact);
+                },
+            );
+        });
+        let mut open = self.tools_open;
+        egui::Window::new("Game tools · PGN / FEN / metadata")
+            .open(&mut open)
+            .default_width(480.0)
+            .show(ui.ctx(), |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("review_tools_metadata")
+                    .max_height((ui.ctx().content_rect().height() - 140.0).max(80.0))
+                    .show(ui, |ui| self.details(ui));
             });
+        self.tools_open = open;
+    }
+
+    fn toolbar(&mut self, ui: &mut egui::Ui) {
+        use shakmaty::Position as _;
+        let white = self
+            .record
+            .headers
+            .get("White")
+            .map_or("White", String::as_str);
+        let black = self
+            .record
+            .headers
+            .get("Black")
+            .map_or("Black", String::as_str);
+        let players = format!("{white} — {black} · {}", self.record.result);
+        ui.add(egui::Label::new(RichText::new(&players).strong()).truncate())
+            .on_hover_text(players);
+        ui.horizontal_wrapped(|ui| {
+            for (label, target, hint) in [
+                ("|◀ First", 0, "Home"),
+                ("◀ Previous", self.cursor.saturating_sub(1), "Left arrow"),
+                (
+                    "Next ▶",
+                    (self.cursor + 1).min(self.record.moves.len()),
+                    "Right arrow",
+                ),
+                ("Last ▶|", self.record.moves.len(), "End"),
+            ] {
+                if ui
+                    .add_enabled(
+                        target != self.cursor && self.promotion.is_none(),
+                        egui::Button::new(label),
+                    )
+                    .on_hover_text(hint)
+                    .clicked()
+                {
+                    self.navigate(target, ui.input(|i| i.time));
+                    ui.ctx().stop_dragging();
+                }
+            }
+            if ui.button("Flip board").clicked() {
+                self.flip();
+                ui.ctx().stop_dragging();
+            }
+            if ui.button("Game tools…").clicked() {
+                self.tools_open = true;
+            }
+            let position = &self.record.positions[self.cursor.saturating_sub(1)];
+            ui.label(format!(
+                "Move {} · position {}/{}",
+                position.fullmoves(),
+                self.cursor,
+                self.record.moves.len()
+            ));
+            ui.label(
+                RichText::new("← / → · Home / End")
+                    .size(12.0)
+                    .color(theme::MUTED),
+            );
+        });
+        ui.horizontal_wrapped(|ui| {
+            for (label, forward, mistakes) in [
+                ("Previous mistake/blunder", false, true),
+                ("Next mistake/blunder", true, true),
+                ("Previous critical move", false, false),
+                ("Next critical move", true, false),
+            ] {
+                let target = super::review_layout::critical_target(
+                    self.saved_summary(),
+                    self.cursor,
+                    forward,
+                    mistakes,
+                );
+                if ui
+                    .add_enabled(
+                        target.is_some() && self.promotion.is_none(),
+                        egui::Button::new(RichText::new(label).size(12.0)),
+                    )
+                    .clicked()
+                    && let Some(target) = target
+                {
+                    self.navigate(target, ui.input(|i| i.time));
+                    ui.ctx().stop_dragging();
+                }
+            }
+        });
+        ui.separator();
+    }
+    fn review_sidebar(&mut self, ui: &mut egui::Ui, compact: bool) {
+        self.summary_card(ui, compact);
+        ui.separator();
+        ui.strong("Move history · Mfalmion classifications");
+        let history_height = if self.live_open && compact {
+            64.0
         } else {
-            self.board(ui, max_side);
-            ui.add_space(16.0);
-            self.details(ui);
+            (ui.available_height() * 0.32).clamp(64.0, 220.0)
+        };
+        let mut target = None;
+        egui::ScrollArea::vertical()
+            .id_salt("review_move_history")
+            .max_height(history_height)
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let summary = self.saved_summary();
+                use shakmaty::Position as _;
+                for (i, san) in self.record.moves.iter().enumerate() {
+                    let ply = i + 1;
+                    let pos = &self.record.positions[i];
+                    let detail = summary
+                        .and_then(|s| s.moves.get(i))
+                        .filter(|m| m.ply == ply);
+                    let label = detail.map_or("Not analyzed", |m| m.classification.label());
+                    let text = RichText::new(format!(
+                        "{}{} {san}  ·  {label}",
+                        pos.fullmoves(),
+                        if pos.turn().is_white() { "." } else { "…" }
+                    ))
+                    .size(13.0)
+                    .color(detail.map_or(theme::MUTED, |m| {
+                        super::review_layout::color(m.classification)
+                    }));
+                    let response =
+                        ui.add(egui::Button::new(text).selected(self.cursor == ply).wrap());
+                    if response.clicked() {
+                        target = Some(ply);
+                    }
+                    if let Some(m) = detail {
+                        response.on_hover_text(format!(
+                            "Mfalmion {} · {} · expected-score loss {}",
+                            m.classification.label(),
+                            m.confidence,
+                            m.loss
+                                .map_or_else(|| "Not analyzed".into(), |v| format!("{v:.4}"))
+                        ));
+                    }
+                }
+                if self.record.moves.is_empty() {
+                    ui.label("No moves in this session.");
+                }
+            });
+        if let Some(target) = target {
+            self.navigate(target, ui.input(|i| i.time));
+        }
+        ui.separator();
+        self.selected_card(ui);
+        let label = format!(
+            "{} Live interactive Stockfish · requested depth {}",
+            if self.live_open { "▼" } else { "▶" },
+            self.analysis.settings.depth
+        );
+        if ui.selectable_label(self.live_open, label).clicked() {
+            self.live_open = !self.live_open;
+        }
+        if self.live_open {
+            egui::ScrollArea::vertical()
+                .id_salt("review_engine_details")
+                .max_height(ui.available_height().max(1.0))
+                .show(ui, |ui| {
+                    ui.label("Live evaluations do not change saved batch classifications.");
+                    self.analysis
+                        .show(ui, self.game.authoritative(), self.analysis_session);
+                });
         }
     }
 
+    fn summary_card(&self, ui: &mut egui::Ui, compact: bool) {
+        ui.strong("Game Analysis Summary");
+        let Some(summary) = self.saved_summary() else {
+            let status = if self
+                .stored_identity
+                .as_ref()
+                .is_some_and(|(p, _, _)| *p != self.current_profile)
+            {
+                "This stored game belongs to another profile; select its profile to view saved analysis"
+            } else if self.is_stored_mainline() && self.saved.matches(self.stored_identity.as_ref())
+            {
+                self.saved.status.as_str()
+            } else if self.is_stored_mainline() {
+                "Loading saved review…"
+            } else {
+                "Not analyzed · open a stored mainline or save and analyze this game in Game Library"
+            };
+            ui.add(egui::Label::new(status).wrap());
+            return;
+        };
+        if self.saved.status.contains("latest attempt") {
+            ui.add(egui::Label::new(&self.saved.status).wrap());
+        }
+        ui.add(egui::Label::new(super::review_layout::saved_label(summary)).truncate())
+            .on_hover_text(format!(
+                "{} · {} · completed saved evidence",
+                super::review_layout::saved_label(summary),
+                summary.config.algorithm
+            ));
+        ui.label(RichText::new("Mfalmion Estimated Accuracy").size(13.0));
+        ui.horizontal_wrapped(|ui| {
+            for (side, value) in [
+                ("White", summary.accuracy.white),
+                ("Black", summary.accuracy.black),
+            ] {
+                egui::Frame::new()
+                    .fill(theme::SURFACE)
+                    .corner_radius(4)
+                    .inner_margin(4.0)
+                    .show(ui, |ui| {
+                        ui.strong(format!("{side} {}", super::review_layout::accuracy(value)));
+                    });
+            }
+        });
+        let counts = |ui: &mut egui::Ui| {
+            use crate::analysis::classify::Category as C;
+            ui.horizontal_wrapped(|ui|{for c in [C::Brilliant,C::Great,C::Best,C::Excellent,C::Good,C::Inaccuracy,C::Mistake,C::Blunder,C::Miss]{
+                let n=summary.counts.get(c.label()).copied().unwrap_or(0);
+                ui.label(RichText::new(format!("{} {n}",c.label())).size(12.0).background_color(theme::SURFACE).color(super::review_layout::color(c))).on_hover_text(format!("Mfalmion {} count — saved batch analysis, not an official Chess.com classification",c.label()));
+            }});
+        };
+        if compact {
+            egui::CollapsingHeader::new("Classification counts")
+                .id_salt("review_counts")
+                .show(ui, counts);
+        } else {
+            counts(ui);
+        }
+        ui.add(
+            egui::Label::new(format!(
+                "Eligible W/B {:?} · excluded W/B {:?}",
+                summary.accuracy.eligible, summary.accuracy.excluded
+            ))
+            .truncate(),
+        )
+        .on_hover_text(&self.saved.status);
+    }
+    fn selected_card(&self, ui: &mut egui::Ui) {
+        ui.strong("Selected Move Analysis");
+        let Some(m) = self
+            .saved_summary()
+            .and_then(|_| self.saved.move_at(self.cursor))
+        else {
+            ui.label(if self.cursor == 0 {
+                "Initial position · select a move"
+            } else {
+                "Not analyzed"
+            });
+            return;
+        };
+        ui.label(
+            RichText::new(format!("{} · {}", m.san, m.classification.label()))
+                .color(super::review_layout::color(m.classification))
+                .strong(),
+        );
+        ui.label(format!(
+            "Expected-score loss: {} · {} · depth {}",
+            m.loss
+                .map_or_else(|| "Not analyzed".into(), |v| format!("{v:.4}")),
+            m.confidence,
+            m.depth
+        ));
+        let before = &self.record.positions[self.cursor - 1];
+        let best = m
+            .best
+            .as_ref()
+            .map(|u| crate::engine::protocol::decode_pv(before, std::slice::from_ref(u)).text)
+            .unwrap_or_else(|| "Not analyzed".into());
+        ui.add(egui::Label::new(format!("Best engine move: {best}")).truncate())
+            .on_hover_text(best);
+        let line = crate::engine::protocol::decode_pv(before, &m.pv).text;
+        ui.add(
+            egui::Label::new(format!(
+                "Best alternative: {}",
+                if line.is_empty() {
+                    "Not analyzed"
+                } else {
+                    &line
+                }
+            ))
+            .truncate(),
+        )
+        .on_hover_text(line);
+        let evaluation = if self
+            .saved
+            .key
+            .as_ref()
+            .is_some_and(|k| k.ply == self.cursor)
+        {
+            self.saved
+                .evaluation
+                .as_ref()
+                .map(|l| {
+                    use crate::analysis::Value;
+                    use crate::engine::protocol::{Bound, Score};
+                    let score = match l.value {
+                        Value::Cp(cp) => Score::Cp(cp),
+                        Value::Mate { white, moves } => Score::Mate {
+                            winner: if white {
+                                shakmaty::Color::White
+                            } else {
+                                shakmaty::Color::Black
+                            },
+                            moves,
+                        },
+                        Value::Draw => return "Draw".into(),
+                    };
+                    score.label(match l.bound.as_str() {
+                        "lower" => Bound::Lower,
+                        "upper" => Bound::Upper,
+                        _ => Bound::Exact,
+                    })
+                })
+                .unwrap_or_else(|| "Not analyzed".into())
+        } else {
+            "Loading saved evaluation…".into()
+        };
+        ui.label(format!("Position evaluation (White): {evaluation}"));
+        if !m.tags.is_empty() {
+            let tags = m.tags.join(" · ");
+            ui.add(egui::Label::new(format!("Tags: {tags}")).truncate())
+                .on_hover_text(tags);
+        }
+    }
     fn board(&mut self, ui: &mut egui::Ui, side: f32) {
         let now = ui.input(|input| input.time);
         self.animations.advance(now);
@@ -413,7 +765,7 @@ impl GameReview {
         self.imported = records;
         self.selected_game = Some(0);
     }
-    fn replay_controls(&mut self, ui: &mut egui::Ui) {
+    fn session_tools(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         if !self.imported.is_empty() {
             let mut selected = None;
@@ -450,57 +802,11 @@ impl GameReview {
         ) {
             ui.label(format!("{white} – {black}"));
         }
-        ui.horizontal(|ui| {
-            for (label, target) in [
-                ("|<", 0),
-                ("<", self.cursor.saturating_sub(1)),
-                (">", (self.cursor + 1).min(self.record.moves.len())),
-                (">|", self.record.moves.len()),
-            ] {
-                if ui.button(label).clicked() {
-                    self.navigate(target, ui.input(|i| i.time));
-                    ui.ctx().stop_dragging();
-                }
-            }
-        });
         ui.collapsing("Game metadata", |ui| {
             for (name, value) in &self.record.headers {
                 ui.label(format!("{name}: {value}"));
             }
         });
-        ui.label(format!(
-            "Position {} / {} · {}",
-            self.cursor,
-            self.record.moves.len(),
-            self.record.result
-        ));
-        let mut jump = None;
-        egui::ScrollArea::vertical()
-            .id_salt("move_history")
-            .max_height(160.0)
-            .show(ui, |ui| {
-                egui::Grid::new("san_moves").show(ui, |ui| {
-                    use shakmaty::Position as _;
-                    for (index, san) in self.record.moves.iter().enumerate() {
-                        let pos = &self.record.positions[index];
-                        if pos.turn().is_white() || index == 0 {
-                            ui.label(format!("{}.", pos.fullmoves()));
-                            if pos.turn().is_black() {
-                                ui.label("…");
-                            }
-                        }
-                        if ui.selectable_label(self.cursor == index + 1, san).clicked() {
-                            jump = Some(index + 1);
-                        }
-                        if pos.turn().is_black() {
-                            ui.end_row();
-                        }
-                    }
-                });
-            });
-        if let Some(target) = jump {
-            self.navigate(target, ui.input(|i| i.time));
-        }
         if self.protected || self.cursor != self.record.moves.len() {
             ui.label("Replay is read-only. Create a local variation to play from here.");
             if ui.button("Create local variation from here").clicked() {
@@ -663,7 +969,7 @@ impl GameReview {
             .corner_radius(8)
             .inner_margin(16.0);
         frame.show(ui, |ui| {
-            self.analysis.show(ui, self.game.authoritative(), self.analysis_session);
+            self.session_tools(ui);
             ui.separator();
             ui.label(RichText::new("BOARD CONTROLS").small().color(theme::PURPLE));
             ui.label(
@@ -679,13 +985,8 @@ impl GameReview {
                 .map_or_else(|| "None".into(), |s| s.to_string());
             ui.label(RichText::new(selected).size(26.0).color(theme::CYAN));
             ui.label(RichText::new(self.state.orientation.label()).color(theme::MUTED));
-            if ui.button("Flip Board").clicked() {
-                self.flip();
-                ui.ctx().stop_dragging();
-                ui.ctx().request_repaint();
-            }
             if self.promotion.is_some() { ui.label("Choose a piece on the board. Escape or click outside to cancel."); }
-            self.replay_controls(ui);
+
             if let Some(notice) = self.notice {
                 ui.label(RichText::new(notice).color(theme::PURPLE));
             }
@@ -1168,5 +1469,163 @@ mod tests {
             crate::notation::parse_pgn("1.d4 *").unwrap(),
         )));
         assert_eq!(review.persistence_import.as_ref().unwrap().0, 7);
+    }
+    fn saved_fixture() -> GameReview {
+        use crate::analysis::{
+            MoveResult as AnalyzedMove, Summary, classify::Category as C, phase::Phase,
+        };
+        let mut review = GameReview {
+            current_profile: 7,
+            ..Default::default()
+        };
+        let record = crate::notation::parse_pgn("1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *")
+            .unwrap()
+            .remove(0);
+        review.open_stored(7, 42, record.clone());
+        let classes = [C::Best, C::Mistake, C::Great, C::Good, C::Blunder, C::Miss];
+        let moves = record
+            .moves
+            .iter()
+            .enumerate()
+            .map(|(i, san)| AnalyzedMove {
+                depth: 12,
+                ply: i + 1,
+                white: i % 2 == 0,
+                san: san.clone(),
+                phase: Phase::Opening,
+                classification: classes[i],
+                confidence: "fixture".into(),
+                tags: vec![],
+                loss: Some(0.0),
+                centipawn_loss: Some(0),
+                best: None,
+                pv: vec![],
+            })
+            .collect();
+        let summary = Summary::new(crate::analysis::Config::default(), moves);
+        let data = crate::storage::review::ReviewData {
+            key: Some(crate::storage::review::ReviewKey {
+                profile: 7,
+                game: 42,
+                fingerprint: crate::storage::games::fingerprint(&record),
+                ply: 0,
+            }),
+            summary: Some(std::sync::Arc::new(summary)),
+            status: "Completed fixture".into(),
+            evaluation: None,
+        };
+        review.set_saved_review(data);
+        review
+    }
+    #[test]
+    fn saved_classifications_map_to_selected_moves_and_reuse_animated_navigation() {
+        let mut review = saved_fixture();
+        review.navigate(1, 1.0);
+        assert!(review.animations.is_active());
+        review.navigate(2, 2.0);
+        assert_eq!(review.saved.move_at(review.cursor).unwrap().san, "e5");
+        assert_eq!(
+            review.saved.move_at(2).unwrap().classification,
+            crate::analysis::classify::Category::Mistake
+        );
+        assert_eq!(
+            crate::notation::fen(review.game.authoritative()),
+            crate::notation::fen(&review.record.positions[2])
+        );
+    }
+    #[test]
+    fn critical_navigation_filters_and_boundaries_use_saved_primary_categories() {
+        let mut review = saved_fixture();
+        let target = super::super::review_layout::critical_target;
+        assert_eq!(target(review.saved_summary(), 0, true, true), Some(2));
+        assert_eq!(target(review.saved_summary(), 2, true, true), Some(5));
+        assert_eq!(target(review.saved_summary(), 2, true, false), Some(3));
+        assert_eq!(target(review.saved_summary(), 6, false, false), Some(5));
+        assert_eq!(target(review.saved_summary(), 0, false, false), None);
+        assert_eq!(target(review.saved_summary(), 6, true, false), None);
+        assert_eq!(target(None, 0, true, false), None);
+        review.navigate(target(review.saved_summary(), 0, true, true).unwrap(), 1.0);
+        assert_eq!(review.cursor, 2);
+    }
+    #[test]
+    fn layout_resize_and_saved_refresh_preserve_game_orientation_cursor_and_live_settings() {
+        let mut review = saved_fixture();
+        review.navigate(3, 1.0);
+        review.flip();
+        let orientation = review.state.orientation;
+        let fen = crate::notation::fen(review.game.authoritative());
+        let pgn = review.record.pgn();
+        let settings = review.engine_settings().clone();
+        for (w, h) in [
+            (1632.0, 840.0),
+            (1152.0, 660.0),
+            (1078.0, 528.0),
+            (992.0, 480.0),
+        ] {
+            let _ = super::super::review_layout::Layout::calculate(w, h);
+            review.set_saved_review(review.saved.clone());
+        }
+        assert_eq!(review.cursor, 3);
+        assert_eq!(review.state.orientation, orientation);
+        assert_eq!(crate::notation::fen(review.game.authoritative()), fen);
+        assert_eq!(review.record.pgn(), pgn);
+        assert_eq!(review.engine_settings(), &settings);
+        assert!(
+            super::super::review_layout::saved_label(review.saved_summary().unwrap())
+                .contains("depth 12")
+        );
+        assert_eq!(review.engine_settings().depth, 16);
+    }
+    #[test]
+    fn missing_stale_profile_and_local_branch_never_invent_classifications() {
+        let mut review = saved_fixture();
+        review.current_profile = 8;
+        assert!(review.saved_summary().is_none());
+        review.current_profile = 7;
+        review.saved.key.as_mut().unwrap().fingerprint = "stale".into();
+        assert!(review.saved_summary().is_none());
+        review.set_saved_review(Default::default());
+        assert!(review.saved_summary().is_none());
+        let mut review = saved_fixture();
+        review.apply_action(SessionAction::Fork);
+        assert!(review.saved_summary().is_none());
+    }
+    #[test]
+    fn cpu_only_review_layout_stays_within_requested_desktop_sizes() {
+        for (w, h) in [
+            (1920.0, 1080.0),
+            (1440.0, 900.0),
+            (1366.0, 768.0),
+            (1280.0, 720.0),
+        ] {
+            let ctx = egui::Context::default();
+            crate::theme::apply(&ctx);
+            let mut review = saved_fixture();
+            review.navigate(3, 0.0);
+            let size = egui::vec2(w - 288.0, h - 110.0);
+            for open in [false, true] {
+                review.live_open = open;
+                let mut bounds = egui::Rect::NOTHING;
+                ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        review.contents(ui);
+                        bounds = ui.min_rect();
+                    },
+                )
+                .drop_without_applying_deltas();
+                assert!(
+                    bounds.right() <= size.x + 1.0,
+                    "horizontal overflow at {w}x{h}: {bounds:?}"
+                );
+                assert!(
+                    bounds.bottom() <= size.y + 1.0,
+                    "vertical overflow at {w}x{h}: {bounds:?}"
+                );
+            }
+        }
     }
 }

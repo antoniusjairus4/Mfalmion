@@ -1131,3 +1131,150 @@ fn account_statistics_only_count_profile_side_and_compatible_versions() {
     other.engine.depth += 1;
     assert_eq!(db.store.account_statistics(p, &other).unwrap().games, 0);
 }
+
+#[test]
+fn review_presentation_loads_recorded_settings_accuracy_counts_and_evaluation_read_only() {
+    let mut db = Database::new();
+    let c = config();
+    let r = short();
+    let (p, g, _) = complete(&mut db, &r, &c);
+    let mut changed = c.clone();
+    changed.engine.depth = 20;
+    db.store.save_batch_config(&changed).unwrap();
+    let changes: i64 = db
+        .store
+        .db
+        .query_row("SELECT total_changes()", [], |r| r.get(0))
+        .unwrap();
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&r),
+        ply: 2,
+    };
+    let data = db.store.review_data(&key).unwrap();
+    let summary = data.summary.as_ref().unwrap();
+    assert_eq!(summary.config, c);
+    assert_eq!(summary.accuracy.white, Some(100.0));
+    assert_eq!(summary.accuracy.black, Some(100.0));
+    assert_eq!(summary.counts["Best"], 4);
+    assert_eq!(data.move_at(2).unwrap().san, "e5");
+    assert_eq!(data.move_at(1).unwrap().san, "e4");
+    assert!(data.move_at(0).is_none());
+    assert_eq!(data.evaluation.as_ref().unwrap().value, Value::Cp(0));
+    assert_eq!(
+        changes,
+        db.store
+            .db
+            .query_row("SELECT total_changes()", [], |r| r.get::<_, i64>(0))
+            .unwrap()
+    );
+}
+#[test]
+fn review_presentation_missing_and_incomplete_states_are_explicit() {
+    let mut db = Database::new();
+    let r = short();
+    let (p, g) = inserted(&mut db, &r);
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&r),
+        ply: 0,
+    };
+    let data = db.store.review_data(&key).unwrap();
+    assert!(data.summary.is_none());
+    assert!(data.status.contains("Not analyzed"));
+    db.store
+        .start_batch(p, &config(), Selection::Selected(g))
+        .unwrap();
+    let data = db.store.review_data(&key).unwrap();
+    assert!(data.summary.is_none());
+    assert!(data.status.contains("incomplete (pending)"));
+}
+#[test]
+fn review_presentation_rejects_wrong_profile_and_stale_game_identity() {
+    let mut db = Database::new();
+    let c = config();
+    let (p, g, _) = complete(&mut db, &short(), &c);
+    let mut key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: "stale".into(),
+        ply: 0,
+    };
+    assert!(db.store.review_data(&key).unwrap().summary.is_none());
+    key.profile = 999;
+    assert!(db.store.review_data(&key).is_err());
+}
+#[test]
+fn review_presentation_retains_previous_complete_during_reanalysis() {
+    let mut db = Database::new();
+    let c = config();
+    let r = short();
+    let (p, g, _) = complete(&mut db, &r, &c);
+    db.store
+        .start_batch(p, &c, Selection::Reanalyze(g))
+        .unwrap();
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&r),
+        ply: 1,
+    };
+    let data = db.store.review_data(&key).unwrap();
+    assert!(data.summary.is_some());
+    assert!(data.status.contains("prior completed"));
+}
+
+#[test]
+fn review_presentation_reports_incompatible_saved_algorithm() {
+    let mut db = Database::new();
+    let r = short();
+    let (p, g, run) = complete(&mut db, &r, &config());
+    db.store
+        .db
+        .execute(
+            "UPDATE batch_runs SET algorithm='unsupported-v99' WHERE id=?1",
+            [run],
+        )
+        .unwrap();
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&r),
+        ply: 0,
+    };
+    let data = db.store.review_data(&key).unwrap();
+    assert!(data.summary.is_none());
+    assert!(data.status.contains("incompatible"));
+}
+#[test]
+fn asynchronous_review_query_returns_requested_game_and_position_without_starting_engine() {
+    let mut db = Database::new();
+    let r = short();
+    let (p, g, _) = complete(&mut db, &r, &config());
+    let client =
+        worker::Client::with_path(db.dir.join("test.sqlite3"), std::sync::Arc::new(|| {})).unwrap();
+    let key = crate::storage::review::ReviewKey {
+        profile: p,
+        game: g,
+        fingerprint: crate::storage::games::fingerprint(&r),
+        ply: 3,
+    };
+    client.send(worker::Command::Review(key.clone())).unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while client.snapshot().revision < 1 && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let data = client.snapshot().review_data;
+    assert_eq!(data.key, Some(key));
+    assert_eq!(data.move_at(3).unwrap().san, "Nf3");
+    assert_eq!(client.snapshot().status, "idle");
+    assert!(!client.active.load(Ordering::Acquire));
+    client.shutdown();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+    while !client.done.load(Ordering::Acquire) && std::time::Instant::now() < deadline {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(client.done.load(Ordering::Acquire));
+}

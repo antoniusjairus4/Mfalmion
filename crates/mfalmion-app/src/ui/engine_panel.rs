@@ -159,7 +159,7 @@ impl EnginePanel {
     pub fn show(&mut self, ui: &mut egui::Ui, position: &Chess, session: u64) {
         self.sync(position, session);
         ui.separator();
-        ui.label(RichText::new("STOCKFISH ANALYSIS").color(theme::CYAN));
+        ui.label(RichText::new("LIVE INTERACTIVE STOCKFISH").color(theme::CYAN));
         ui.label(format!(
             "{:?}{}",
             self.status,
@@ -254,7 +254,7 @@ impl EnginePanel {
                     } else {
                         &pv.text
                     })
-                    .small(),
+                    .size(13.0),
                 );
                 if let Some(error) = pv.invalid {
                     ui.colored_label(theme::DANGER, error);

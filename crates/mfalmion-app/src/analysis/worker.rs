@@ -26,6 +26,7 @@ pub struct State {
     pub message: String,
     pub review: Option<(i64, i64, String, Arc<Summary>)>,
     pub statistics: String,
+    pub review_data: crate::storage::review::ReviewData,
 }
 impl Default for State {
     fn default() -> Self {
@@ -44,11 +45,13 @@ impl Default for State {
             message: String::new(),
             review: None,
             statistics: String::new(),
+            review_data: Default::default(),
         }
     }
 }
 pub enum Command {
     Inspect(i64, Option<i64>),
+    Review(crate::storage::review::ReviewKey),
     Start(i64, Config, Selection),
     Resume(i64),
     Cancel(i64),
@@ -99,6 +102,17 @@ impl Client {
                         let is_run = matches!(command, Command::Start(..) | Command::Resume(..));
                         let result = match command {
                             Command::Inspect(profile, game) => inspect(&store, &s, profile, game),
+                            Command::Review(key) => {
+                                let data = store.review_data(&key).unwrap_or_else(|e| {
+                                    crate::storage::review::ReviewData {
+                                        key: Some(key),
+                                        status: format!("Saved review unavailable: {e}"),
+                                        ..Default::default()
+                                    }
+                                });
+                                s.lock().unwrap_or_else(|p| p.into_inner()).review_data = data;
+                                Ok(())
+                            }
                             Command::Save(config) => (|| {
                                 store.save_batch_config(&config)?;
                                 let profile = s.lock().unwrap_or_else(|p| p.into_inner()).profile;

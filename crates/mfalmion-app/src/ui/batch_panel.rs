@@ -15,7 +15,7 @@ pub struct BatchPanel {
     pub state: State,
     config: Config,
     profile: i64,
-    last_review: Option<(i64, i64, String)>,
+    last_review: Option<crate::storage::review::ReviewKey>,
     dispatched: bool,
     dispatch_revision: u64,
     pub changed: bool,
@@ -91,6 +91,7 @@ impl BatchPanel {
         self.profile = 0;
         self.last_review = None;
         self.state.review = None;
+        self.state.review_data = Default::default();
     }
     pub fn shutdown(&self) {
         if let Some(c) = &self.client {
@@ -134,94 +135,28 @@ impl BatchPanel {
             });
         });
     }
-    pub fn review(&mut self, ui: &mut egui::Ui, identity: Option<(i64, i64, String)>, ply: usize) {
-        if identity != self.last_review && !self.busy() {
-            self.last_review = identity.clone();
-            if let Some((profile, id, _)) = &identity {
-                self.send(Command::Inspect(*profile, Some(*id)));
+    pub fn load_review(&mut self, identity: Option<(i64, i64, String)>, ply: usize) {
+        let key = identity.map(
+            |(profile, game, fingerprint)| crate::storage::review::ReviewKey {
+                profile,
+                game,
+                fingerprint,
+                ply,
+            },
+        );
+        if key != self.last_review && !self.busy() {
+            if let Some(key) = key {
+                if let Some(client) = &self.client
+                    && client.send(Command::Review(key.clone())).is_ok()
+                {
+                    self.last_review = Some(key);
+                }
+            } else {
+                self.last_review = None;
             }
         }
-        let Some((profile, id, fingerprint, summary)) = &self.state.review else {
-            return;
-        };
-        if identity.as_ref() != Some(&(*profile, *id, fingerprint.clone())) {
-            return;
-        }
-        ui.separator();
-        ui.strong("Mfalmion Estimated Accuracy");
-        let format = |v: Option<f64>| v.map_or_else(|| "—".into(), |v| format!("{v:.1}%"));
-        ui.label(format!(
-            "White {} · Black {} · {} · depth {} / MultiPV {} · {}",
-            format(summary.accuracy.white),
-            format(summary.accuracy.black),
-            summary.config.identity,
-            summary.config.engine.depth,
-            summary.config.engine.multipv,
-            summary.config.algorithm
-        ));
-        ui.label(format!(
-            "Eligible {:?} · excluded/unclassified {:?}",
-            summary.accuracy.eligible, summary.accuracy.excluded
-        ));
-        ui.horizontal_wrapped(|ui| {
-            for label in [
-                "Brilliant",
-                "Great",
-                "Best",
-                "Excellent",
-                "Good",
-                "Inaccuracy",
-                "Mistake",
-                "Blunder",
-                "Miss",
-            ] {
-                ui.label(format!(
-                    "{label}: {}",
-                    summary.counts.get(label).copied().unwrap_or(0)
-                ));
-            }
-        });
-        if let Some(m) = ply.checked_sub(1).and_then(|i| summary.moves.get(i)) {
-            ui.strong(format!(
-                "{}. {} · {} · {}",
-                m.ply,
-                m.san,
-                m.classification.label(),
-                format_args!("{} · depth {}", m.confidence, m.depth)
-            ));
-            ui.label(format!(
-                "Expected-score loss: {} · centipawn loss {:?} · best alternative {}",
-                m.loss
-                    .map_or_else(|| "insufficient".into(), |l| format!("{l:.4}")),
-                m.centipawn_loss,
-                m.best.as_deref().unwrap_or("—")
-            ));
-            ui.label(format!(
-                "PV (UCI): {} · {}",
-                m.pv.join(" "),
-                m.tags.join(", ")
-            ));
-        }
-        egui::CollapsingHeader::new("Move-by-move classifications").show(ui, |ui| {
-            egui::ScrollArea::vertical()
-                .max_height(180.0)
-                .show(ui, |ui| {
-                    for m in &summary.moves {
-                        let text = egui::RichText::new(format!(
-                            "{} {} — {}",
-                            m.ply,
-                            m.san,
-                            m.classification.label()
-                        ));
-                        let text = if m.ply == ply {
-                            text.strong().color(crate::theme::CYAN)
-                        } else {
-                            text
-                        };
-                        ui.label(text)
-                            .on_hover_text(format!("Loss {:?}; best {:?}", m.loss, m.best));
-                    }
-                });
-        });
+    }
+    pub fn review_data(&self) -> crate::storage::review::ReviewData {
+        self.state.review_data.clone()
     }
 }
